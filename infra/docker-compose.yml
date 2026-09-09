@@ -1,0 +1,140 @@
+services:
+  postgres:
+    build:
+      context: ./postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: transit
+      POSTGRES_USER: transit_app
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-dev-only}
+      TZ: UTC
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U transit_app -d transit"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    ports:
+      - "127.0.0.1:5432:5432"
+
+  redis:
+    image: valkey/valkey:8-alpine
+    restart: unless-stopped
+    command: ["valkey-server", "--appendonly", "yes", "--save", "60", "1000"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    ports:
+      - "127.0.0.1:6379:6379"
+
+  migrate:
+    build:
+      context: ../backend
+    command: ["python", "-m", "app.infrastructure.migrate"]
+    environment:
+      DATABASE_URL: postgresql://transit_app:${POSTGRES_PASSWORD:-local-dev-only}@postgres:5432/transit
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: ../backend
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      APP_ENV: development
+      INFRASTRUCTURE_ENABLED: "true"
+      DATABASE_URL: postgresql://transit_app:${POSTGRES_PASSWORD:-local-dev-only}@postgres:5432/transit
+      CACHE_URL: redis://redis:6379/0
+      API_DOCS_ENABLED: "true"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  rio-ingestion:
+    build:
+      context: ../backend
+    restart: unless-stopped
+    command: ["python", "-m", "app.workers.rio_ingestion"]
+    environment:
+      APP_ENV: development
+      DATABASE_URL: postgresql://transit_app:${POSTGRES_PASSWORD:-local-dev-only}@postgres:5432/transit
+      CACHE_URL: redis://redis:6379/0
+      RIO_REALTIME_URL: ${RIO_REALTIME_URL:-https://dados.mobilidade.rio/gps/sppo}
+      RIO_POLL_INTERVAL_SECONDS: ${RIO_POLL_INTERVAL_SECONDS:-30}
+      WORKER_METRICS_PORT: 9101
+    ports:
+      - "127.0.0.1:9101:9101"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  archive-day:
+    profiles: ["maintenance"]
+    build:
+      context: ../backend
+      args:
+        INSTALL_TARGET: ".[archive]"
+    command: ["python", "-m", "app.workers.archive_day"]
+    environment:
+      APP_ENV: development
+      DATABASE_URL: postgresql://transit_app:${POSTGRES_PASSWORD:-local-dev-only}@postgres:5432/transit
+      ARCHIVE_STORAGE_KIND: ${ARCHIVE_STORAGE_KIND:-local}
+      ARCHIVE_LOCAL_ROOT: /data/archive
+      ARCHIVE_BATCH_SIZE: ${ARCHIVE_BATCH_SIZE:-50000}
+      ARCHIVE_S3_ENDPOINT: ${ARCHIVE_S3_ENDPOINT:-}
+      ARCHIVE_S3_REGION: ${ARCHIVE_S3_REGION:-}
+      ARCHIVE_S3_BUCKET: ${ARCHIVE_S3_BUCKET:-}
+      ARCHIVE_S3_ACCESS_KEY_ID: ${ARCHIVE_S3_ACCESS_KEY_ID:-}
+      ARCHIVE_S3_SECRET_ACCESS_KEY: ${ARCHIVE_S3_SECRET_ACCESS_KEY:-}
+      ARCHIVE_S3_PREFIX: ${ARCHIVE_S3_PREFIX:-transit-history}
+    volumes:
+      - archive_data:/data/archive
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+  retention:
+    profiles: ["maintenance"]
+    build:
+      context: ../backend
+      args:
+        INSTALL_TARGET: ".[archive]"
+    command: ["python", "-m", "app.workers.retention"]
+    environment:
+      APP_ENV: development
+      DATABASE_URL: postgresql://transit_app:${POSTGRES_PASSWORD:-local-dev-only}@postgres:5432/transit
+      HOT_RETENTION_DAYS: ${HOT_RETENTION_DAYS:-2}
+      DESTRUCTIVE_RETENTION_ENABLED: ${DESTRUCTIVE_RETENTION_ENABLED:-false}
+      ARCHIVE_STORAGE_KIND: ${ARCHIVE_STORAGE_KIND:-local}
+      ARCHIVE_LOCAL_ROOT: /data/archive
+      ARCHIVE_S3_ENDPOINT: ${ARCHIVE_S3_ENDPOINT:-}
+      ARCHIVE_S3_REGION: ${ARCHIVE_S3_REGION:-}
+      ARCHIVE_S3_BUCKET: ${ARCHIVE_S3_BUCKET:-}
+      ARCHIVE_S3_ACCESS_KEY_ID: ${ARCHIVE_S3_ACCESS_KEY_ID:-}
+      ARCHIVE_S3_SECRET_ACCESS_KEY: ${ARCHIVE_S3_SECRET_ACCESS_KEY:-}
+      ARCHIVE_S3_PREFIX: ${ARCHIVE_S3_PREFIX:-transit-history}
+    volumes:
+      - archive_data:/data/archive
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+volumes:
+  postgres_data:
+  redis_data:
+  archive_data:

@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  backend-unit:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install -e '.[dev,archive]'
+      - run: ruff check .
+      - run: python -m compileall -q app tests scripts
+      - run: pytest -q -m 'not integration'
+      - run: pip-audit
+
+  backend-integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_DB: transit_test
+          POSTGRES_USER: transit_test
+          POSTGRES_PASSWORD: transit_test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U transit_test -d transit_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+      valkey:
+        image: valkey/valkey:8.1.9-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "valkey-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgresql://transit_test:transit_test_password@127.0.0.1:5432/transit_test
+      TEST_CACHE_URL: redis://127.0.0.1:6379/15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install -e '.[dev,archive]'
+      - run: pytest -q -m integration
+
+  postgres-multiarch-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: infra/postgres
+          platforms: linux/amd64,linux/arm64
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  compose-config:
+    runs-on: ubuntu-latest
+    env:
+      POSTGRES_PASSWORD: ci-only-long-postgres-password
+      CACHE_PASSWORD: ci-only-long-valkey-password
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose -f infra/docker-compose.yml config --quiet
+      - run: docker compose -f infra/docker-compose.production.yml config --quiet

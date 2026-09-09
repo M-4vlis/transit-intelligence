@@ -1,0 +1,34 @@
+[
+  {
+    "modo": "SPPO",
+    "timestamp_gps": "2026-09-01T10:30:00-03:00",
+    "id_veiculo": "D12345",
+    "servico": "457",
+    "latitude": -22.912345,
+    "longitude": -43.203456,
+    "flag_em_operacao": true,
+    "flag_em_movimento": true,
+    "tipo_parada": "nao_identificado",
+    "status": "Em operação",
+    "velocidade_instantanea": 27.0,
+    "velocidade_estimada_10_min": 23.5,
+    "distancia": 225.0,
+    "versao": "fixture-contract-v1"
+  },
+  {
+    "modo": "SPPO",
+    "timestamp_gps": "2026-09-01T10:30:30-03:00",
+    "id_veiculo": "D54321",
+    "servico": "383",
+    "latitude": -22.918765,
+    "longitude": -43.212345,
+    "flag_em_operacao": true,
+    "flag_em_movimento": false,
+    "tipo_parada": "terminal",
+    "status": "Parado terminal",
+    "velocidade_instantanea": 0.0,
+    "velocidade_estimada_10_min": 1.2,
+    "distancia": 0.0,
+    "versao": "fixture-contract-v1"
+  }
+]

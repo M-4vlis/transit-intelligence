@@ -1,0 +1,24 @@
+[Unit]
+Description=Transit Intelligence 24h ingestion soak watcher
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
+ConditionPathExists=/home/ubuntu/apps/transit-intelligence/.env.production
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+SupplementaryGroups=docker
+WorkingDirectory=/home/ubuntu/apps/transit-intelligence
+ExecStart=/usr/bin/bash /home/ubuntu/apps/transit-intelligence/infra/scripts/soak_watch.sh /home/ubuntu/apps/transit-intelligence/.env.production /home/ubuntu/apps/transit-intelligence/ops/soak 24
+Restart=on-failure
+RestartSec=60
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/ubuntu/apps/transit-intelligence/ops/soak
+
+[Install]
+WantedBy=multi-user.target

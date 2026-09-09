@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.venv/
+.uv-cache/
+node_modules/
+.expo/
+dist/
+coverage/
+*.log
+*.pyc
+ops/soak/
+.DS_Store

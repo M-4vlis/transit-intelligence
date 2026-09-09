@@ -1,0 +1,380 @@
+name: transit-intelligence
+
+x-app-environment: &app-environment
+  APP_ENV: production
+  LOG_LEVEL: INFO
+  DATABASE_URL: postgresql://transit_app:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/transit
+  CACHE_URL: redis://:${CACHE_PASSWORD:?CACHE_PASSWORD is required}@redis:6379/0
+  RIO_REALTIME_URL: ${RIO_REALTIME_URL:-https://dados.mobilidade.rio/gps/sppo}
+  RIO_ALLOWED_SOURCE_HOSTS: dados.mobilidade.rio
+  RIO_GTFS_URL: ${RIO_GTFS_URL:-https://www.arcgis.com/sharing/rest/content/items/8ffe62ad3b2f42e49814bf941654ea6c/data}
+  RIO_GTFS_ALLOWED_SOURCE_HOSTS: www.arcgis.com
+  GTFS_MAX_COMPRESSED_BYTES: ${GTFS_MAX_COMPRESSED_BYTES:-67108864}
+  GTFS_MAX_UNCOMPRESSED_BYTES: ${GTFS_MAX_UNCOMPRESSED_BYTES:-536870912}
+  GTFS_MAX_MEMBERS: ${GTFS_MAX_MEMBERS:-128}
+  RIO_POLL_INTERVAL_SECONDS: ${RIO_POLL_INTERVAL_SECONDS:-60}
+  RIO_REALTIME_INITIAL_WINDOW_SECONDS: ${RIO_REALTIME_INITIAL_WINDOW_SECONDS:-120}
+  RIO_REALTIME_OVERLAP_SECONDS: ${RIO_REALTIME_OVERLAP_SECONDS:-30}
+  RIO_REALTIME_MAX_WINDOW_SECONDS: ${RIO_REALTIME_MAX_WINDOW_SECONDS:-300}
+  RIO_REALTIME_MAX_RESPONSE_BYTES: ${RIO_REALTIME_MAX_RESPONSE_BYTES:-33554432}
+  SOURCE_TIMEOUT_SECONDS: ${SOURCE_TIMEOUT_SECONDS:-20}
+  LIVE_POSITION_TTL_SECONDS: ${LIVE_POSITION_TTL_SECONDS:-180}
+
+x-app-hardening: &app-hardening
+  restart: unless-stopped
+  read_only: true
+  init: true
+  tmpfs:
+    - /tmp:size=64m,mode=1777
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: "3"
+
+services:
+  postgres:
+    build:
+      context: ./postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: transit
+      POSTGRES_USER: transit_app
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      TZ: UTC
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U transit_app -d transit"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    shm_size: 256mb
+    mem_limit: 4g
+    cpus: 0.90
+    logging:
+      driver: json-file
+      options:
+        max-size: 20m
+        max-file: "3"
+
+  redis:
+    image: valkey/valkey:8.1.9-alpine
+    restart: unless-stopped
+    command:
+      - valkey-server
+      - --appendonly
+      - "yes"
+      - --save
+      - "60"
+      - "1000"
+      - --requirepass
+      - ${CACHE_PASSWORD:?CACHE_PASSWORD is required}
+    volumes:
+      - redis_data:/data
+    networks:
+      - data
+    healthcheck:
+      test: ["CMD-SHELL", "valkey-cli -a \"$$CACHE_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    environment:
+      CACHE_PASSWORD: ${CACHE_PASSWORD:?CACHE_PASSWORD is required}
+    mem_limit: 768m
+    cpus: 0.30
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  migrate:
+    build:
+      context: ../backend
+    command: ["python", "-m", "app.infrastructure.migrate"]
+    environment:
+      <<: *app-environment
+    networks:
+      - data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  api:
+    <<: *app-hardening
+    build:
+      context: ../backend
+    environment:
+      <<: *app-environment
+      INFRASTRUCTURE_ENABLED: "true"
+      API_DOCS_ENABLED: "false"
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+    ports:
+      - "127.0.0.1:${TRANSIT_API_HOST_PORT:-18000}:8000"
+    networks:
+      - edge
+      - data
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3).read()"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    mem_limit: 768m
+    cpus: 0.45
+
+  rio-ingestion:
+    <<: *app-hardening
+    build:
+      context: ../backend
+    command: ["python", "-m", "app.workers.rio_ingestion"]
+    environment:
+      <<: *app-environment
+      WORKER_METRICS_PORT: 9101
+    ports:
+      - "127.0.0.1:9101:9101"
+    networks:
+      - data
+      - egress
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9101/metrics', timeout=3).read()"
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    mem_limit: 768m
+    cpus: 0.45
+
+  archive-day:
+    profiles: ["maintenance"]
+    build:
+      context: ../backend
+      args:
+        INSTALL_TARGET: ".[archive]"
+    command: ["python", "-m", "app.workers.archive_day"]
+    environment:
+      <<: *app-environment
+      ARCHIVE_STORAGE_KIND: ${ARCHIVE_STORAGE_KIND:-local}
+      ARCHIVE_LOCAL_ROOT: ${ARCHIVE_LOCAL_ROOT:-/data/archive}
+      ARCHIVE_BATCH_SIZE: ${ARCHIVE_BATCH_SIZE:-50000}
+      ARCHIVE_S3_ENDPOINT: ${ARCHIVE_S3_ENDPOINT:-}
+      ARCHIVE_S3_REGION: ${ARCHIVE_S3_REGION:-}
+      ARCHIVE_S3_BUCKET: ${ARCHIVE_S3_BUCKET:-}
+      ARCHIVE_S3_ACCESS_KEY_ID: ${ARCHIVE_S3_ACCESS_KEY_ID:-}
+      ARCHIVE_S3_SECRET_ACCESS_KEY: ${ARCHIVE_S3_SECRET_ACCESS_KEY:-}
+      ARCHIVE_S3_PREFIX: ${ARCHIVE_S3_PREFIX:-transit-history}
+    volumes:
+      - archive_data:/data/archive
+    networks:
+      - data
+      - egress
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  retention:
+    profiles: ["maintenance"]
+    build:
+      context: ../backend
+      args:
+        INSTALL_TARGET: ".[archive]"
+    command: ["python", "-m", "app.workers.retention"]
+    environment:
+      <<: *app-environment
+      HOT_RETENTION_DAYS: ${HOT_RETENTION_DAYS:-2}
+      DESTRUCTIVE_RETENTION_ENABLED: ${DESTRUCTIVE_RETENTION_ENABLED:-false}
+      ARCHIVE_STORAGE_KIND: ${ARCHIVE_STORAGE_KIND:-local}
+      ARCHIVE_LOCAL_ROOT: ${ARCHIVE_LOCAL_ROOT:-/data/archive}
+      ARCHIVE_S3_ENDPOINT: ${ARCHIVE_S3_ENDPOINT:-}
+      ARCHIVE_S3_REGION: ${ARCHIVE_S3_REGION:-}
+      ARCHIVE_S3_BUCKET: ${ARCHIVE_S3_BUCKET:-}
+      ARCHIVE_S3_ACCESS_KEY_ID: ${ARCHIVE_S3_ACCESS_KEY_ID:-}
+      ARCHIVE_S3_SECRET_ACCESS_KEY: ${ARCHIVE_S3_SECRET_ACCESS_KEY:-}
+      ARCHIVE_S3_PREFIX: ${ARCHIVE_S3_PREFIX:-transit-history}
+    volumes:
+      - archive_data:/data/archive
+    networks:
+      - data
+      - egress
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  object-store-smoke:
+    profiles: ["maintenance"]
+    build:
+      context: ../backend
+      args:
+        INSTALL_TARGET: ".[archive]"
+    command: ["python", "scripts/object_store_smoke.py"]
+    environment:
+      <<: *app-environment
+      ARCHIVE_STORAGE_KIND: ${ARCHIVE_STORAGE_KIND:-local}
+      ARCHIVE_LOCAL_ROOT: ${ARCHIVE_LOCAL_ROOT:-/data/archive}
+      ARCHIVE_S3_ENDPOINT: ${ARCHIVE_S3_ENDPOINT:-}
+      ARCHIVE_S3_REGION: ${ARCHIVE_S3_REGION:-}
+      ARCHIVE_S3_BUCKET: ${ARCHIVE_S3_BUCKET:-}
+      ARCHIVE_S3_ACCESS_KEY_ID: ${ARCHIVE_S3_ACCESS_KEY_ID:-}
+      ARCHIVE_S3_SECRET_ACCESS_KEY: ${ARCHIVE_S3_SECRET_ACCESS_KEY:-}
+      ARCHIVE_S3_PREFIX: ${ARCHIVE_S3_PREFIX:-transit-history}
+    networks:
+      - egress
+    restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  archive-restore-check:
+    profiles: ["maintenance"]
+    build:
+      context: ../backend
+      args:
+        INSTALL_TARGET: ".[archive]"
+    command: ["python", "scripts/archive_restore_check.py", "--day", "${ARCHIVE_DAY:-1970-01-01}"]
+    environment:
+      <<: *app-environment
+      TMPDIR: /data/archive
+      ARCHIVE_STORAGE_KIND: ${ARCHIVE_STORAGE_KIND:-local}
+      ARCHIVE_LOCAL_ROOT: ${ARCHIVE_LOCAL_ROOT:-/data/archive}
+      ARCHIVE_S3_ENDPOINT: ${ARCHIVE_S3_ENDPOINT:-}
+      ARCHIVE_S3_REGION: ${ARCHIVE_S3_REGION:-}
+      ARCHIVE_S3_BUCKET: ${ARCHIVE_S3_BUCKET:-}
+      ARCHIVE_S3_ACCESS_KEY_ID: ${ARCHIVE_S3_ACCESS_KEY_ID:-}
+      ARCHIVE_S3_SECRET_ACCESS_KEY: ${ARCHIVE_S3_SECRET_ACCESS_KEY:-}
+      ARCHIVE_S3_PREFIX: ${ARCHIVE_S3_PREFIX:-transit-history}
+    volumes:
+      - archive_data:/data/archive
+    networks:
+      - data
+      - egress
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  rio-gtfs-canary:
+    profiles: ["maintenance"]
+    build:
+      context: ../backend
+    command: ["python", "scripts/check_rio_gtfs.py"]
+    environment:
+      <<: *app-environment
+    networks:
+      - egress
+    restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  stack-smoke:
+    profiles: ["operations"]
+    build:
+      context: ../backend
+    command: ["python", "scripts/stack_smoke.py"]
+    environment:
+      <<: *app-environment
+    networks:
+      - data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  soak-gate:
+    profiles: ["operations"]
+    build:
+      context: ../backend
+    command: ["python", "scripts/soak_gate.py", "--hours", "24"]
+    environment:
+      <<: *app-environment
+    networks:
+      - data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+networks:
+  data:
+    internal: true
+  edge:
+  egress:
+
+volumes:
+  postgres_data:
+  redis_data:
+  archive_data:

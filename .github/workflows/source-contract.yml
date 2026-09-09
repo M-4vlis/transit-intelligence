@@ -1,0 +1,32 @@
+name: Rio source contract smoke
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 */6 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  rio-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e .
+      - name: Check public Rio GPS contract
+        run: python scripts/check_rio_contract.py | tee rio-contract-report.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rio-contract-report
+          path: backend/rio-contract-report.json
+          retention-days: 14
