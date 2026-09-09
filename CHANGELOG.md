@@ -22,6 +22,8 @@
 
 - `DESTRUCTIVE_RETENTION_ENABLED=false` remains unchanged;
 - no PostgreSQL partition was removed.
+- OCI actual-cost and forecast-cost alerts were enabled at USD 0.01, with zero
+  computed September cost at verification time.
 
 ## 0.7.1 — 2026-09-03
 

@@ -46,3 +46,15 @@
 - Recovery PARs, temporary Object Storage objects/bucket, ephemeral private keys
   and the active serial console connection were removed after permanent SSH was
   verified.
+
+## Cost guard
+
+- OCI Usage API reported zero computed cost for September through
+  `2026-09-08T23:59:59Z`.
+- The A1 instance uses the full Always Free allocation: 2 OCPUs and 12 GB RAM.
+- Combined boot volume use is 147 GB of the 200 GB Always Free allocation.
+- Object Storage use is approximately 240 MiB of the 20 GB Always Free
+  allocation.
+- OCI budget `transit-free-tier-guard` has a monthly reference amount of USD 1.
+- Actual and forecast alerts notify the account owner as soon as computed spend
+  reaches USD 0.01. Budget alerts do not automatically stop resources.
