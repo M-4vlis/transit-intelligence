@@ -2,7 +2,6 @@ from pathlib import Path
 
 import yaml
 
-
 ROOT = Path(__file__).resolve().parents[2]
 COMPOSE_PATH = ROOT / "infra" / "docker-compose.production.yml"
 POSTGRES_DOCKERFILE = ROOT / "infra" / "postgres" / "Dockerfile"
@@ -63,3 +62,12 @@ def test_restore_check_uses_cleanup_backed_archive_volume_for_large_objects():
     service = _compose()["services"]["archive-restore-check"]
     assert service["environment"]["TMPDIR"] == "/data/archive"
     assert "archive_data:/data/archive" in service["volumes"]
+
+
+def test_retention_preflight_is_non_destructive_and_hardened():
+    service = _compose()["services"]["retention-preflight"]
+    assert service["command"] == ["python", "scripts/retention_preflight.py"]
+    assert service["read_only"] is True
+    assert service["restart"] == "no"
+    assert service["cap_drop"] == ["ALL"]
+    assert "DESTRUCTIVE_RETENTION_ENABLED" not in service["environment"]

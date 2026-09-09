@@ -141,3 +141,27 @@ async def test_retention_protects_partition_if_hot_rows_change_during_final_drop
 
     assert report.dropped_days == ()
     assert report.protected_days == (day,)
+
+
+@pytest.mark.asyncio
+async def test_retention_dry_run_reports_eligible_days_without_dropping() -> None:
+    verified = date(2026, 8, 28)
+    unverified = date(2026, 8, 29)
+    hot = FakeHotRepository([verified, unverified])
+    archive = FakeArchiveCatalog([verified])
+    service = SafeHotRetentionService(
+        source="rio-smtr-gps",
+        hot_repository=hot,
+        archive_catalog=archive,
+        retention_days=2,
+    )
+
+    report = await service.run_once(
+        now=datetime(2026, 9, 1, 15, tzinfo=UTC),
+        dry_run=True,
+    )
+
+    assert report.dropped_days == ()
+    assert report.would_drop_days == (verified,)
+    assert report.protected_days == (unverified,)
+    assert hot.dropped == []

@@ -245,6 +245,39 @@ services:
     cap_drop:
       - ALL
 
+  retention-preflight:
+    profiles: ["maintenance"]
+    build:
+      context: ../backend
+      args:
+        INSTALL_TARGET: ".[archive]"
+    command: ["python", "scripts/retention_preflight.py"]
+    environment:
+      <<: *app-environment
+      HOT_RETENTION_DAYS: ${HOT_RETENTION_DAYS:-2}
+      ARCHIVE_STORAGE_KIND: ${ARCHIVE_STORAGE_KIND:-local}
+      ARCHIVE_LOCAL_ROOT: ${ARCHIVE_LOCAL_ROOT:-/data/archive}
+      ARCHIVE_S3_ENDPOINT: ${ARCHIVE_S3_ENDPOINT:-}
+      ARCHIVE_S3_REGION: ${ARCHIVE_S3_REGION:-}
+      ARCHIVE_S3_BUCKET: ${ARCHIVE_S3_BUCKET:-}
+      ARCHIVE_S3_ACCESS_KEY_ID: ${ARCHIVE_S3_ACCESS_KEY_ID:-}
+      ARCHIVE_S3_SECRET_ACCESS_KEY: ${ARCHIVE_S3_SECRET_ACCESS_KEY:-}
+      ARCHIVE_S3_PREFIX: ${ARCHIVE_S3_PREFIX:-transit-history}
+    networks:
+      - data
+      - egress
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
   object-store-smoke:
     profiles: ["maintenance"]
     build:

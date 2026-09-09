@@ -51,4 +51,22 @@ Aprovação do soak autoriza avançar para o gate de archive, não para exclusã
 1. object-store smoke;
 2. archive remoto real;
 3. restore check integral;
-4. só então revisão explícita de `DESTRUCTIVE_RETENTION_ENABLED`.
+4. preflight de retenção em modo somente leitura;
+5. só então revisão explícita de `DESTRUCTIVE_RETENTION_ENABLED`.
+
+Executar o preflight sem alterar dados:
+
+```bash
+./infra/scripts/retention_preflight.sh .env.production \
+  | tee ops/retention-preflight.json
+```
+
+O relatório deve manter `dropped_days` vazio. `would_drop_days` contém somente
+partições antigas cujo manifest está `verified`, cuja contagem corresponde ao
+banco e cujo objeto remoto foi relido integralmente com hash e tamanho
+compatíveis. Dias sem essa prova aparecem em `protected_days`.
+
+Não executar o worker `retention` se o soak não estiver aprovado, se houver um
+dia candidato sem archive/restore comprovado ou se o relatório do preflight não
+for o esperado. O preflight ignora a chave destrutiva e nunca chama a operação
+de exclusão.

@@ -38,6 +38,7 @@ class RetentionReport:
     candidate_days: tuple[date, ...]
     dropped_days: tuple[date, ...]
     protected_days: tuple[date, ...]
+    would_drop_days: tuple[date, ...] = ()
 
 
 class SafeHotRetentionService:
@@ -62,7 +63,12 @@ class SafeHotRetentionService:
         self.archive_catalog = archive_catalog
         self.retention_days = retention_days
 
-    async def run_once(self, *, now: datetime | None = None) -> RetentionReport:
+    async def run_once(
+        self,
+        *,
+        now: datetime | None = None,
+        dry_run: bool = False,
+    ) -> RetentionReport:
         now = now or datetime.now(UTC)
         if now.tzinfo is None:
             now = now.replace(tzinfo=UTC)
@@ -73,6 +79,7 @@ class SafeHotRetentionService:
 
         dropped: list[date] = []
         protected: list[date] = []
+        would_drop: list[date] = []
         for day in candidates:
             # Partitions are time-based, while archives are source/day. A source-specific
             # archive must never authorize deletion of another source sharing the same day.
@@ -91,6 +98,9 @@ class SafeHotRetentionService:
             if not verified:
                 protected.append(day)
                 continue
+            if dry_run:
+                would_drop.append(day)
+                continue
             removed = await self.hot_repository.drop_partition_if_unchanged(
                 day=day,
                 source=self.source,
@@ -106,4 +116,5 @@ class SafeHotRetentionService:
             candidate_days=candidates,
             dropped_days=tuple(dropped),
             protected_days=tuple(protected),
+            would_drop_days=tuple(would_drop),
         )

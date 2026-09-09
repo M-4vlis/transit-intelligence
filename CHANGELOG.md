@@ -24,6 +24,10 @@
 - no PostgreSQL partition was removed.
 - OCI actual-cost and forecast-cost alerts were enabled at USD 0.01, with zero
   computed September cost at verification time.
+- a read-only retention preflight now reports verified `would_drop_days`
+  without invoking partition deletion;
+- maintenance retention connections have no request-path command timeout, so
+  multi-million-row parity checks fail on integrity rather than an API timeout.
 
 ## 0.7.1 — 2026-09-03
 
