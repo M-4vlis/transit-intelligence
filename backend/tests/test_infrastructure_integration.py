@@ -39,7 +39,10 @@ async def test_postgis_repository_is_idempotent_and_supports_nearby_query() -> N
     try:
         await _reset_and_migrate(pool)
         repository = PostgresPositionRepository(pool)
-        now = datetime.now(UTC)
+        # Anchor the fixture at the start of a second. Replacing a random current
+        # microsecond with 500000 could otherwise move the supposed newer sample
+        # backwards and make this contract test depend on runner timing.
+        now = datetime.now(UTC).replace(microsecond=0)
         position = VehiclePosition(
             agency_id="br-rj-rio-smtr-sppo",
             vehicle_id="D12345",
