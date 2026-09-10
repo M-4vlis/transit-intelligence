@@ -61,10 +61,10 @@ Cloudflare (TLS/WAF)
 cloudflared -- rede tunnel
       |
       v
-Nginx policy proxy -- redes tunnel + edge
+Nginx policy proxy -- redes tunnel + api-edge
       |
       v
-FastAPI -- redes edge + data
+FastAPI -- redes api-edge + data
       |
       +--> Valkey / PostGIS -- rede data
 ```

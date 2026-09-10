@@ -129,7 +129,7 @@ services:
     ports:
       - "127.0.0.1:${TRANSIT_API_HOST_PORT:-18000}:8000"
     networks:
-      - edge
+      - api-edge
       - data
     depends_on:
       migrate:
@@ -165,7 +165,7 @@ services:
       - ALL
     networks:
       - tunnel
-      - edge
+      - api-edge
     depends_on:
       api:
         condition: service_healthy
@@ -492,7 +492,7 @@ services:
 networks:
   data:
     internal: true
-  edge:
+  api-edge:
     internal: true
   tunnel:
     internal: true

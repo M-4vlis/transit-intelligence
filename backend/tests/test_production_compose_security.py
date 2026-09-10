@@ -33,15 +33,15 @@ def test_public_edge_uses_outbound_tunnel_without_host_ports():
     assert "ports" not in services["edge-proxy"]
     assert "ports" not in services["cloudflared"]
     assert set(services["cloudflared"]["networks"]) == {"tunnel", "egress"}
-    assert set(services["edge-proxy"]["networks"]) == {"tunnel", "edge"}
+    assert set(services["edge-proxy"]["networks"]) == {"tunnel", "api-edge"}
     assert compose["networks"]["tunnel"]["internal"] is True
-    assert compose["networks"]["edge"]["internal"] is True
+    assert compose["networks"]["api-edge"]["internal"] is True
 
 
 def test_tunnel_cannot_bypass_proxy_or_reach_data_network():
     services = _compose()["services"]
 
-    assert "edge" not in services["cloudflared"]["networks"]
+    assert "api-edge" not in services["cloudflared"]["networks"]
     assert "data" not in services["cloudflared"]["networks"]
     assert "data" not in services["edge-proxy"]["networks"]
     assert "cloudflare_tunnel_token" in services["cloudflared"]["secrets"]
