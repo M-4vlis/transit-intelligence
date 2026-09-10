@@ -3,43 +3,46 @@
 ## Código / CI
 
 - [x] testes unitários locais aprovados;
-- [x] integração PostGIS/Valkey definida no CI;
-- [x] build multi-arquitetura do banco definido no CI;
+- [x] integração PostGIS/Valkey definida e aprovada no CI;
+- [x] build multi-arquitetura do banco definido e aprovado no CI;
 - [x] Compose de produção endurecido e testado estaticamente;
-- [ ] CI executado no repositório definitivo do produto;
-- [ ] lockfile de dependências gerado e revisado.
+- [x] CI executado no repositório definitivo do produto;
+- [x] lockfile de dependências gerado e revisado.
 
 ## Oracle ARM64
 
-- [ ] `.env.production` criado com permissões 600;
-- [ ] preflight aprovado;
-- [ ] imagem PostgreSQL/PostGIS construída em ARM64;
-- [ ] migrações aplicadas;
-- [ ] API `health/ready` saudável;
-- [ ] worker realtime saudável;
-- [ ] stack smoke aprovado com posição real.
+- [x] `.env.production` criado com permissões 600;
+- [x] preflight aprovado;
+- [x] imagem PostgreSQL/PostGIS construída em ARM64;
+- [x] migrações aplicadas;
+- [x] API `health/ready` saudável;
+- [x] worker realtime saudável;
+- [x] stack smoke aprovado com posição real.
 
 ## Fonte Rio
 
-- [ ] primeiro fingerprint live preservado;
-- [ ] rejection ratio inicial analisado;
-- [ ] canary do contrato executado externamente;
-- [ ] soak de 24h aprovado e JSON arquivado.
+- [x] primeiro fingerprint live preservado;
+- [x] rejection ratio inicial analisado;
+- [x] canary do contrato executado externamente;
+- [x] soak de 24h aprovado e JSON arquivado.
 
 ## Cold archive
 
-- [ ] bucket OCI/R2 criado fora da VPS;
-- [ ] object-store smoke aprovado;
-- [ ] primeiro archive Parquet remoto `verified`;
-- [ ] restore check integral aprovado;
-- [ ] retenção destrutiva revisada explicitamente.
+- [x] bucket OCI criado fora da VPS;
+- [x] object-store smoke aprovado;
+- [x] archives Parquet remotos verificados;
+- [x] restore checks integrais aprovados;
+- [x] retenção destrutiva revisada, aplicada uma única vez e desativada novamente.
 
-## Exposição pública
+## Exposição pública — gate pós-M0 / M1
 
-- [ ] nenhum banco/cache exposto;
-- [ ] edge/reverse proxy definido;
-- [ ] TLS válido;
-- [ ] WAF/rate limiting;
-- [ ] política de logs/PII revisada;
-- [ ] threat model do endpoint público revisado;
-- [ ] somente após esses gates o app móvel poderá acessar a API pela internet.
+Estes itens não são necessários para encerrar o M0. Continuam bloqueando qualquer
+acesso do aplicativo móvel à API pela internet.
+
+- [ ] confirmar novamente que nenhum banco/cache será exposto no desenho de borda;
+- [ ] definir edge/reverse proxy;
+- [ ] instalar TLS válido;
+- [ ] configurar WAF/rate limiting;
+- [ ] revisar política de logs/PII;
+- [ ] revisar threat model do endpoint público;
+- [ ] liberar a API ao app móvel somente após todos os gates acima.

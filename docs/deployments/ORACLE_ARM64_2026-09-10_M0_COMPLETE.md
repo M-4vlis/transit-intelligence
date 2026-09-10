@@ -53,3 +53,14 @@ restore files were removed. The private bucket contains 1.505 GB, below the
 - Latest checked ingestion cycle succeeded with live persistence, cache updates
   and the expected fingerprint.
 - OCI budget actual/forecast alerts remain active at USD 0.01.
+
+## Release verification
+
+- Release version: `0.8.0`.
+- Local suite: 98 tests passed and 4 external-integration tests skipped.
+- Dependency lockfile check and Ruff lint passed.
+- GitHub CI passed unit tests, PostgreSQL/Valkey integration, production Compose
+  validation and PostgreSQL/PostGIS multi-architecture build:
+  <https://github.com/M-4vlis/transit-intelligence/actions/runs/34533478187>.
+- The externally hosted Rio contract canary passed against the live source:
+  <https://github.com/M-4vlis/transit-intelligence/actions/runs/34533785310>.
