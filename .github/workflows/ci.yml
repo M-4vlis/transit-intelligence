@@ -92,4 +92,4 @@ jobs:
       - run: docker compose -f infra/docker-compose.yml config --quiet
       - run: docker compose -f infra/docker-compose.production.yml --profile edge config --quiet
       - run: docker build --tag transit-edge-ci infra/edge
-      - run: docker run --rm transit-edge-ci nginx -t
+      - run: docker run --rm --add-host api:127.0.0.1 transit-edge-ci nginx -t
