@@ -1,10 +1,9 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from app.modules.mobility.models import QualityStatus, VehiclePosition
 from app.modules.mobility.quality.engine import VehicleQualityEngine
 
-
-NOW = datetime(2026, 9, 1, 12, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 9, 1, 12, 0, tzinfo=UTC)
 
 
 def position(*, age_seconds: int = 10, speed_mps: float | None = 10) -> VehiclePosition:

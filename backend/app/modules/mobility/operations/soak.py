@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
-from typing import Sequence
+from itertools import pairwise
 
 from app.modules.mobility.operations.models import (
     IngestionRunSample,
@@ -60,7 +61,7 @@ def assess_soak(
     if len(normalized) >= 2:
         gaps = [
             (current.finished_at - previous.finished_at).total_seconds()
-            for previous, current in zip(normalized, normalized[1:])
+            for previous, current in pairwise(normalized)
         ]
         max_gap_seconds = max(gaps)
 

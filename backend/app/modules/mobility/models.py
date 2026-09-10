@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from enum import StrEnum
 from hashlib import sha256
-import json
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -65,7 +65,7 @@ class RejectedSourceRecord(BaseModel):
         payload: Any,
         reason_code: str,
         detail: str,
-    ) -> "RejectedSourceRecord":
+    ) -> RejectedSourceRecord:
         try:
             encoded = json.dumps(payload, sort_keys=True, ensure_ascii=False, default=str)
         except TypeError:

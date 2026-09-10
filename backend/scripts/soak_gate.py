@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
-import json
 
 from app.core.config import settings
 from app.infrastructure.postgres import PostgresOperationalRepository, create_postgres_pool

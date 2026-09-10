@@ -36,19 +36,18 @@ class PostgresPositionRepository:
             return 0
 
         days = sorted({position.observed_at.astimezone(UTC).date() for position in positions})
-        async with self.pool.acquire() as conn:
-            async with conn.transaction():
-                for day in days:
-                    partition_name = f"vehicle_positions_{day:%Y%m%d}"
-                    # Serialize old-day writes with destructive retention. Lock first, then
-                    # ensure the partition, so a late write after retention recreates safely.
-                    await conn.execute(
-                        "SELECT pg_advisory_xact_lock(hashtext($1))", partition_name
-                    )
-                    await conn.execute("SELECT transit.ensure_vehicle_position_partition($1)", day)
+        async with self.pool.acquire() as conn, conn.transaction():
+            for day in days:
+                partition_name = f"vehicle_positions_{day:%Y%m%d}"
+                # Serialize old-day writes with destructive retention. Lock first, then
+                # ensure the partition, so a late write after retention recreates safely.
+                await conn.execute(
+                    "SELECT pg_advisory_xact_lock(hashtext($1))", partition_name
+                )
+                await conn.execute("SELECT transit.ensure_vehicle_position_partition($1)", day)
 
-                inserted = await conn.fetchval(
-                    """
+            inserted = await conn.fetchval(
+                """
                     WITH source_rows AS (
                         SELECT *
                         FROM unnest(
@@ -79,21 +78,21 @@ class PostgresPositionRepository:
                     )
                     SELECT count(*) FROM inserted_rows
                     """,
-                    [p.dedupe_key() for p in positions],
-                    [p.agency_id for p in positions],
-                    [p.vehicle_id for p in positions],
-                    [p.route_id for p in positions],
-                    [p.trip_id for p in positions],
-                    [p.latitude for p in positions],
-                    [p.longitude for p in positions],
-                    [p.speed_mps for p in positions],
-                    [p.bearing_deg for p in positions],
-                    [p.observed_at for p in positions],
-                    [p.received_at for p in positions],
-                    [p.source for p in positions],
-                    [p.quality_status.value for p in positions],
-                    [p.quality_score for p in positions],
-                )
+                [p.dedupe_key() for p in positions],
+                [p.agency_id for p in positions],
+                [p.vehicle_id for p in positions],
+                [p.route_id for p in positions],
+                [p.trip_id for p in positions],
+                [p.latitude for p in positions],
+                [p.longitude for p in positions],
+                [p.speed_mps for p in positions],
+                [p.bearing_deg for p in positions],
+                [p.observed_at for p in positions],
+                [p.received_at for p in positions],
+                [p.source for p in positions],
+                [p.quality_status.value for p in positions],
+                [p.quality_score for p in positions],
+            )
 
         return int(inserted or 0)
 
@@ -342,23 +341,22 @@ class PostgresHotPartitionRepository:
         expected_row_count: int,
     ) -> bool:
         partition_name = self._partition_name(day)
-        async with self.pool.acquire() as conn:
-            async with conn.transaction():
-                await conn.execute("SELECT pg_advisory_xact_lock(hashtext($1))", partition_name)
-                row = await conn.fetchrow(
-                    (
-                        f'SELECT count(*) AS total_rows, '
-                        f'count(*) FILTER (WHERE source = $1) AS source_rows '
-                        f'FROM transit."{partition_name}"'
-                    ),
-                    source,
-                )
-                total_rows = int(row["total_rows"] or 0)
-                source_rows = int(row["source_rows"] or 0)
-                if total_rows != expected_row_count or source_rows != expected_row_count:
-                    return False
-                await conn.execute(f'DROP TABLE transit."{partition_name}"')
-                return True
+        async with self.pool.acquire() as conn, conn.transaction():
+            await conn.execute("SELECT pg_advisory_xact_lock(hashtext($1))", partition_name)
+            row = await conn.fetchrow(
+                (
+                    f'SELECT count(*) AS total_rows, '
+                    f'count(*) FILTER (WHERE source = $1) AS source_rows '
+                    f'FROM transit."{partition_name}"'
+                ),
+                source,
+            )
+            total_rows = int(row["total_rows"] or 0)
+            source_rows = int(row["source_rows"] or 0)
+            if total_rows != expected_row_count or source_rows != expected_row_count:
+                return False
+            await conn.execute(f'DROP TABLE transit."{partition_name}"')
+            return True
 
 class PostgresHistoricalPositionSource:
     def __init__(self, pool: Any) -> None:
@@ -375,10 +373,9 @@ class PostgresHistoricalPositionSource:
             raise ValueError("batch_size must be positive")
         start = datetime.combine(day, datetime.min.time(), tzinfo=UTC)
         end = start + timedelta(days=1)
-        async with self.pool.acquire() as conn:
-            async with conn.transaction(readonly=True):
-                cursor = conn.cursor(
-                    """
+        async with self.pool.acquire() as conn, conn.transaction(readonly=True):
+            cursor = conn.cursor(
+                """
                     SELECT
                         agency_id, vehicle_id, route_id, trip_id,
                         latitude, longitude, speed_mps, bearing_deg,
@@ -389,19 +386,19 @@ class PostgresHistoricalPositionSource:
                       AND observed_at < $3
                     ORDER BY observed_at, ingest_key
                     """,
-                    source,
-                    start,
-                    end,
-                    prefetch=batch_size,
-                )
-                batch: list[VehiclePosition] = []
-                async for row in cursor:
-                    batch.append(VehiclePosition.model_validate(dict(row)))
-                    if len(batch) >= batch_size:
-                        yield batch
-                        batch = []
-                if batch:
+                source,
+                start,
+                end,
+                prefetch=batch_size,
+            )
+            batch: list[VehiclePosition] = []
+            async for row in cursor:
+                batch.append(VehiclePosition.model_validate(dict(row)))
+                if len(batch) >= batch_size:
                     yield batch
+                    batch = []
+            if batch:
+                yield batch
 
 
 class PostgresArchiveManifestCatalog:

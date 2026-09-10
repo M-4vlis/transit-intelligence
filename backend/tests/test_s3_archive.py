@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from datetime import date
 from hashlib import sha256
-from io import BytesIO
 from pathlib import Path
 
 import pytest

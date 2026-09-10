@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from app.modules.mobility.models import QualityStatus, VehiclePosition
 
@@ -37,10 +37,10 @@ class VehicleQualityEngine:
         *,
         now: datetime | None = None,
     ) -> QualityAssessment:
-        now = now or datetime.now(timezone.utc)
+        now = now or datetime.now(UTC)
         observed_at = position.observed_at
         if observed_at.tzinfo is None:
-            observed_at = observed_at.replace(tzinfo=timezone.utc)
+            observed_at = observed_at.replace(tzinfo=UTC)
 
         reasons: list[str] = []
         score = 1.0

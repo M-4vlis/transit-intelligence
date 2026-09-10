@@ -45,11 +45,17 @@ Fonte SMTR   S3-compatible cold archive
 - retenção destrutiva desabilitada por padrão e fail-closed;
 - API/worker realtime não carregam dependências pesadas de archive.
 
-## Marco atual — v0.7.1
+## Marco atual — v0.8.0 / M0 concluído
 
-O M0 inclui um deployment endurecido na Oracle ARM64, Object Storage validado e um gate automatizado de soak. A v0.7 acrescentou a aquisição segura e versionada do GTFS oficial do Rio como preparação paralela para o futuro motor de ETA/Confidence.
+O M0 está operacionalmente concluído. O Transit Core manteve 24 horas de
+ingestão real sem falhas, persiste no PostGIS, publica no Valkey e serve a API
+própria. O histórico antigo foi arquivado no OCI Object Storage, restaurado e
+validado integralmente antes de a retenção fail-closed liberar espaço no banco.
 
-A v0.7.1 adaptou o coletor realtime ao contrato atual da fonte oficial, que exige `dataInicial` e `dataFinal`. A stack está implantada na Oracle ARM64, a ingestão real está persistindo no PostGIS e publicando no Valkey, e o soak de 24 horas começou em `2026-09-03T14:11:27Z`. Object Storage e restore foram revalidados; a retenção destrutiva continua desabilitada.
+A chave destrutiva permanece desabilitada por padrão e foi ligada somente
+durante a execução controlada e comprovada de retenção. O próximo marco é M1:
+mapa, catálogo de linhas/paradas e ETA básico com base no GTFS versionado e no
+histórico próprio.
 
 Veja `docs/M0_TRANSIT_CORE.md` e `docs/VALIDATION.md`.
 

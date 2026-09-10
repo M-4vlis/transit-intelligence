@@ -12,6 +12,8 @@ jobs:
   rio-contract:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    env:
+      EXPECTED_RIO_CONTRACT_FINGERPRINTS: b8a3775b7ce4415241a1ba377303da6801f6c089d5c26dac8c370871465c1e33
     defaults:
       run:
         working-directory: backend

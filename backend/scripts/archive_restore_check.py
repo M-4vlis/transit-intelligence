@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
+import tempfile
 from datetime import date
 from hashlib import sha256
-import json
 from pathlib import Path
-import tempfile
 
 from app.core.config import settings
 from app.infrastructure.parquet import create_s3_compatible_client

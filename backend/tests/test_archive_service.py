@@ -9,7 +9,6 @@ from app.modules.mobility.archive.models import ArchiveArtifact, ArchiveVerifica
 from app.modules.mobility.archive.service import ArchiveDayService, ArchiveVerificationError
 from app.modules.mobility.models import VehiclePosition
 
-
 DAY = date(2026, 9, 1)
 SOURCE = "rio-smtr-gps"
 SHA = "a" * 64

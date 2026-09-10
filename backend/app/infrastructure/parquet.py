@@ -1,15 +1,14 @@
 from __future__ import annotations
 
+import os
+import re
 from collections.abc import AsyncIterator, Sequence
 from datetime import UTC, date
 from hashlib import sha256
-import os
 from pathlib import Path
-import re
 
 from app.modules.mobility.archive.models import ArchiveArtifact, ArchiveVerification
 from app.modules.mobility.models import VehiclePosition
-
 
 _SAFE_COMPONENT = re.compile(r"[^A-Za-z0-9._-]+")
 

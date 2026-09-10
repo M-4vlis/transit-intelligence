@@ -19,12 +19,12 @@ async def readiness(request: Request, response: Response) -> dict[str, object]:
     if repository is not None:
         try:
             checks["database"] = await repository.ping()
-        except Exception:
+        except Exception:  # noqa: BLE001 - readiness must fail closed for any driver error
             checks["database"] = False
     if cache is not None:
         try:
             checks["cache"] = await cache.ping()
-        except Exception:
+        except Exception:  # noqa: BLE001 - readiness must fail closed for any driver error
             checks["cache"] = False
 
     ready = all(checks.values())

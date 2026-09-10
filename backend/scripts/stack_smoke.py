@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-from datetime import UTC, datetime
 import json
+from datetime import UTC, datetime
 
 from app.core.config import settings
 from app.infrastructure.postgres import PostgresOperationalRepository, create_postgres_pool

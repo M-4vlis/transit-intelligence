@@ -6,7 +6,6 @@ from pathlib import Path
 from app.core.config import settings
 from app.infrastructure.postgres import create_postgres_pool
 
-
 MIGRATIONS_DIR = Path(__file__).resolve().parent.parent / "migrations"
 
 

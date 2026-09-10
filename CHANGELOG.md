@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased - 2026-09-09 production hotfix
+## 0.8.0 — 2026-09-10 — M0 operational completion
 
 ### Fixed
 
@@ -16,7 +16,12 @@
 
 - ARM64 stack, realtime persistence, Valkey cache and stable source fingerprint;
 - OCI Object Storage smoke plus a 4,627,753-row archive and full restore check;
-- fresh 24-hour soak started at `2026-09-09T17:23:55.635815Z`.
+- 24-hour soak passed with 1,439 successful runs, zero failed runs, zero rejected
+  records and one stable contract fingerprint;
+- five non-empty UTC days passed archive and independent full restore checks;
+- retention dry-run approved exactly the five eligible days, and the controlled
+  apply dropped only those partitions;
+- post-retention readiness and stack smoke passed with fresh realtime data.
 
 ### Safety
 
@@ -28,6 +33,8 @@
   without invoking partition deletion;
 - maintenance retention connections have no request-path command timeout, so
   multi-million-row parity checks fail on integrity rather than an API timeout.
+- the destructive flag was returned to `false` immediately after the controlled
+  retention run.
 
 ## 0.7.1 — 2026-09-03
 

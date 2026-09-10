@@ -5,7 +5,6 @@ import pytest
 from app.modules.mobility.archive.models import ArchiveArtifact, ArchiveVerification
 from app.modules.mobility.retention.guard import RemoteVerifiedArchiveGuard
 
-
 DAY = date(2026, 9, 1)
 SHA = "a" * 64
 

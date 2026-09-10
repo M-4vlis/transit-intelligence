@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
 WATCHER = ROOT / "infra" / "scripts" / "soak_watch.sh"
 UNIT = ROOT / "infra" / "systemd" / "transit-intelligence-soak-watch.service"

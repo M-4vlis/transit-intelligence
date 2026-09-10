@@ -10,7 +10,7 @@ from app.observability.ingestion_metrics import (
 
 
 def _sample_value(metric, name: str, labels: dict[str, str]) -> float:
-    value = metric.labels(**labels)._value.get()  # noqa: SLF001 - isolated metrics contract test
+    value = metric.labels(**labels)._value.get()
     assert isinstance(value, float)
     return value
 
