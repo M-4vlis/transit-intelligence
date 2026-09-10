@@ -26,6 +26,42 @@ def test_api_and_metrics_bind_only_to_loopback():
     assert services["rio-ingestion"]["ports"] == ["127.0.0.1:9101:9101"]
 
 
+def test_public_edge_uses_outbound_tunnel_without_host_ports():
+    compose = _compose()
+    services = compose["services"]
+
+    assert "ports" not in services["edge-proxy"]
+    assert "ports" not in services["cloudflared"]
+    assert set(services["cloudflared"]["networks"]) == {"tunnel", "egress"}
+    assert set(services["edge-proxy"]["networks"]) == {"tunnel", "edge"}
+    assert compose["networks"]["tunnel"]["internal"] is True
+    assert compose["networks"]["edge"]["internal"] is True
+
+
+def test_tunnel_cannot_bypass_proxy_or_reach_data_network():
+    services = _compose()["services"]
+
+    assert "edge" not in services["cloudflared"]["networks"]
+    assert "data" not in services["cloudflared"]["networks"]
+    assert "data" not in services["edge-proxy"]["networks"]
+    assert "cloudflare_tunnel_token" in services["cloudflared"]["secrets"]
+    assert services["cloudflared"]["cap_drop"] == ["ALL"]
+    assert services["edge-proxy"]["cap_drop"] == ["ALL"]
+
+
+def test_edge_proxy_only_publishes_bounded_v1_reads():
+    nginx = (ROOT / "infra" / "edge" / "nginx.conf").read_text(encoding="utf-8")
+
+    assert "location /v1/" in nginx
+    assert "limit_except GET OPTIONS" in nginx
+    assert "limit_req_zone" in nginx
+    assert "limit_conn_zone" in nginx
+    assert "client_max_body_size 16k" in nginx
+    assert "location / {" in nginx
+    assert "return 404" in nginx
+    assert "proxy_pass http://transit_api" in nginx
+
+
 def test_internal_data_network_and_valkey_auth_are_required():
     compose = _compose()
     assert compose["networks"]["data"]["internal"] is True

@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased — M1
+
+### Added
+
+- outbound-only Cloudflare Tunnel deployment path that preserves SSH on port
+  443 and requires its connector token through a file-backed Compose secret;
+- isolated Nginx edge proxy with public `/v1/` allowlist, read-only methods,
+  request/connection limits, small payload cap and security headers;
+- separate tunnel/API networks that prevent `cloudflared` from reaching the API,
+  PostgreSQL or Valkey without crossing the proxy;
+- edge preflight, internal policy smoke and deployment runbook.
+
+### Safety
+
+- edge services publish no host ports and remain disabled behind a Compose
+  profile until a real hostname and protected token file pass preflight;
+- `/metrics`, `/health` and all non-`/v1/` paths remain unavailable publicly;
+- edge logs omit client IPs and query strings by default.
+
 ## 0.8.0 — 2026-09-10 — M0 operational completion
 
 ### Fixed

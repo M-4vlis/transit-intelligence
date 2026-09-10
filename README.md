@@ -53,9 +53,17 @@ própria. O histórico antigo foi arquivado no OCI Object Storage, restaurado e
 validado integralmente antes de a retenção fail-closed liberar espaço no banco.
 
 A chave destrutiva permanece desabilitada por padrão e foi ligada somente
-durante a execução controlada e comprovada de retenção. O próximo marco é M1:
-mapa, catálogo de linhas/paradas e ETA básico com base no GTFS versionado e no
-histórico próprio.
+durante a execução controlada e comprovada de retenção.
+
+## Marco em desenvolvimento — M1 mapa + ETA básico
+
+O M1 foi iniciado pela borda pública segura, sem abrir portas adicionais na
+Oracle. A arquitetura preparada usa Cloudflare Tunnel de saída, proxy Nginx
+isolado, allowlist de rotas `/v1/`, limites de requisição/conexão e bloqueio de
+health/metrics. A ativação externa depende de domínio e credencial Cloudflare.
+
+As próximas fatias do M1 importam o GTFS versionado no PostGIS, publicam o
+catálogo de linhas/paradas, criam o mapa mobile e entregam o ETA V0.
 
 Veja `docs/M0_TRANSIT_CORE.md` e `docs/VALIDATION.md`.
 

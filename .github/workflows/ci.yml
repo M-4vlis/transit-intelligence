@@ -85,7 +85,11 @@ jobs:
     env:
       POSTGRES_PASSWORD: ci-only-long-postgres-password
       CACHE_PASSWORD: ci-only-long-valkey-password
+      CLOUDFLARE_TUNNEL_TOKEN_FILE: /tmp/cloudflare-tunnel-token
     steps:
       - uses: actions/checkout@v4
+      - run: printf '%s' 'ci-only-placeholder-token-not-used-by-compose-validation' > /tmp/cloudflare-tunnel-token
       - run: docker compose -f infra/docker-compose.yml config --quiet
-      - run: docker compose -f infra/docker-compose.production.yml config --quiet
+      - run: docker compose -f infra/docker-compose.production.yml --profile edge config --quiet
+      - run: docker build --tag transit-edge-ci infra/edge
+      - run: docker run --rm transit-edge-ci nginx -t
