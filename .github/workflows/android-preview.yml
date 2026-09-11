@@ -1,0 +1,62 @@
+name: Android preview APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: Temporary HTTPS base URL for the Transit API
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      EXPO_PUBLIC_API_BASE_URL: ${{ inputs.api_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate preview API URL
+        shell: bash
+        run: |
+          if [[ ! "$EXPO_PUBLIC_API_BASE_URL" =~ ^https://[a-z0-9-]+\.trycloudflare\.com$ ]]; then
+            echo "api_url must be a Cloudflare Quick Tunnel HTTPS URL" >&2
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - run: corepack enable
+      - run: corepack prepare pnpm@10.28.2 --activate
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec expo prebuild --platform android --no-install
+
+      - name: Build installable release APK
+        working-directory: mobile/android
+        run: ./gradlew :app:assembleRelease --no-daemon
+
+      - name: Record APK checksum
+        run: sha256sum android/app/build/outputs/apk/release/app-release.apk > android/app/build/outputs/apk/release/app-release.apk.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: transit-intelligence-preview-${{ github.run_number }}
+          path: |
+            mobile/android/app/build/outputs/apk/release/app-release.apk
+            mobile/android/app/build/outputs/apk/release/app-release.apk.sha256
+          if-no-files-found: error
+          retention-days: 7

@@ -219,6 +219,38 @@ services:
         max-size: 10m
         max-file: "3"
 
+  cloudflared-quick:
+    profiles: ["preview"]
+    image: cloudflare/cloudflared:2026.9.0
+    command:
+      - tunnel
+      - --no-autoupdate
+      - --metrics
+      - 0.0.0.0:2000
+      - --url
+      - http://edge-proxy:8080
+    restart: unless-stopped
+    user: "65532:65532"
+    read_only: true
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - tunnel
+      - egress
+    depends_on:
+      edge-proxy:
+        condition: service_healthy
+    mem_limit: 128m
+    cpus: 0.15
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
   rio-ingestion:
     <<: *app-hardening
     build:
