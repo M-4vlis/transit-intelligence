@@ -24,11 +24,11 @@ degrade com transparência quando o GPS estiver antigo.
 
 ### M1.1 — Catálogo GTFS no PostGIS
 
-- [ ] importar snapshot GTFS identificado por SHA-256;
-- [ ] versionar agency, routes, stops, trips, stop_times, calendar e shapes;
-- [ ] fazer troca atômica do snapshot ativo;
-- [ ] provar idempotência e rollback;
-- [ ] publicar busca paginada de linhas e paradas próximas.
+- [x] importar snapshot GTFS identificado por SHA-256;
+- [x] versionar agency, routes, stops, trips, stop_times, calendar e shapes;
+- [x] fazer troca atômica do snapshot ativo;
+- [x] provar idempotência e rollback;
+- [x] publicar busca paginada de linhas e paradas próximas.
 
 ### M1.2 — Mapa mobile
 

@@ -22,8 +22,27 @@ class PostgresGtfsCatalog:
         offset: int,
     ) -> GtfsRoutePage:
         normalized = query.strip() if query else None
-        pattern = f"%{normalized}%" if normalized else None
+        if normalized:
+            escaped = normalized.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            pattern = f"%{escaped}%"
+        else:
+            pattern = None
         async with self.pool.acquire() as conn:
+            total = await conn.fetchval(
+                """
+                SELECT count(*)
+                FROM transit.gtfs_routes route
+                JOIN transit.gtfs_snapshots snapshot USING (snapshot_id)
+                WHERE snapshot.status = 'active'
+                  AND (
+                    $1::text IS NULL
+                    OR route.route_id ILIKE $1 ESCAPE '\\'
+                    OR route.route_short_name ILIKE $1 ESCAPE '\\'
+                    OR route.route_long_name ILIKE $1 ESCAPE '\\'
+                  )
+                """,
+                pattern,
+            )
             rows = await conn.fetch(
                 """
                 WITH active AS (
@@ -34,14 +53,13 @@ class PostgresGtfsCatalog:
                 SELECT
                     route.snapshot_id, route.route_id, route.agency_id,
                     route.route_short_name, route.route_long_name, route.route_desc,
-                    route.route_type, route.route_color, route.route_text_color,
-                    count(*) OVER() AS total
+                    route.route_type, route.route_color, route.route_text_color
                 FROM transit.gtfs_routes route
                 JOIN active USING (snapshot_id)
                 WHERE $1::text IS NULL
-                   OR route.route_id ILIKE $1
-                   OR route.route_short_name ILIKE $1
-                   OR route.route_long_name ILIKE $1
+                   OR route.route_id ILIKE $1 ESCAPE '\\'
+                   OR route.route_short_name ILIKE $1 ESCAPE '\\'
+                   OR route.route_long_name ILIKE $1 ESCAPE '\\'
                 ORDER BY
                     nullif(route.route_short_name, '') ASC NULLS LAST,
                     nullif(route.route_long_name, '') ASC NULLS LAST,
@@ -52,14 +70,11 @@ class PostgresGtfsCatalog:
                 limit,
                 offset,
             )
-        total = int(rows[0]["total"]) if rows else 0
         items = tuple(
-            GtfsRoute.model_validate(
-                {key: value for key, value in dict(row).items() if key != "total"}
-            )
+            GtfsRoute.model_validate(dict(row))
             for row in rows
         )
-        return GtfsRoutePage(items=items, limit=limit, offset=offset, total=total)
+        return GtfsRoutePage(items=items, limit=limit, offset=offset, total=int(total or 0))
 
     async def nearby_stops(
         self,
@@ -71,6 +86,22 @@ class PostgresGtfsCatalog:
         offset: int,
     ) -> GtfsStopPage:
         async with self.pool.acquire() as conn:
+            total = await conn.fetchval(
+                """
+                SELECT count(*)
+                FROM transit.gtfs_stops stop
+                JOIN transit.gtfs_snapshots snapshot USING (snapshot_id)
+                WHERE snapshot.status = 'active'
+                  AND ST_DWithin(
+                    stop.location,
+                    ST_SetSRID(ST_MakePoint($2,$1),4326)::geography,
+                    $3
+                  )
+                """,
+                latitude,
+                longitude,
+                radius_m,
+            )
             rows = await conn.fetch(
                 """
                 WITH active AS (
@@ -94,7 +125,7 @@ class PostgresGtfsCatalog:
                         $3
                     )
                 )
-                SELECT *, count(*) OVER() AS total
+                SELECT *
                 FROM nearby
                 ORDER BY distance_m ASC, stop_id ASC
                 LIMIT $4 OFFSET $5
@@ -105,11 +136,8 @@ class PostgresGtfsCatalog:
                 limit,
                 offset,
             )
-        total = int(rows[0]["total"]) if rows else 0
         items = tuple(
-            NearbyGtfsStop.model_validate(
-                {key: value for key, value in dict(row).items() if key != "total"}
-            )
+            NearbyGtfsStop.model_validate(dict(row))
             for row in rows
         )
-        return GtfsStopPage(items=items, limit=limit, offset=offset, total=total)
+        return GtfsStopPage(items=items, limit=limit, offset=offset, total=int(total or 0))

@@ -46,9 +46,10 @@ class _Context(AbstractAsyncContextManager[Any]):
 
 
 class FakeConnection:
-    def __init__(self) -> None:
+    def __init__(self, *, existing: dict[str, Any] | None = None) -> None:
         self.copied: dict[str, list[tuple[Any, ...]]] = {}
         self.queries: list[str] = []
+        self.existing = existing
 
     def transaction(self) -> _Context:
         return _Context(None)
@@ -57,8 +58,8 @@ class FakeConnection:
         self.queries.append(" ".join(query.split()))
         return "OK"
 
-    async def fetchrow(self, query: str, *args: Any) -> None:
-        return None
+    async def fetchrow(self, query: str, *args: Any) -> dict[str, Any] | None:
+        return self.existing
 
     async def fetchval(self, query: str, *args: Any) -> int:
         return 1
@@ -112,4 +113,26 @@ async def test_snapshot_import_copies_all_supported_files_and_activates(tmp_path
     assert result.row_counts["routes.txt"] == 1
     assert result.row_counts["shapes.txt"] == 1
     assert connection.copied["gtfs_stop_times"][0][3] == 90_062
+    assert any("status = 'active'" in query for query in connection.queries)
+
+
+@pytest.mark.asyncio
+async def test_reimport_is_idempotent_and_can_activate_ready_snapshot(tmp_path: Path) -> None:
+    path = tmp_path / "gtfs.zip"
+    _write_gtfs(path)
+    manifest = validate_gtfs_snapshot(
+        path,
+        source_url="https://dados.mobilidade.rio/gtfs/schedule",
+    )
+    connection = FakeConnection(
+        existing={"status": "ready", "row_counts": '{"routes.txt": 494}'}
+    )
+
+    result = await PostgresGtfsImporter(FakePool(connection)).import_snapshot(path, manifest)
+
+    assert result.already_imported is True
+    assert result.active is True
+    assert result.row_counts == {"routes.txt": 494}
+    assert connection.copied == {}
+    assert any("status = 'superseded'" in query for query in connection.queries)
     assert any("status = 'active'" in query for query in connection.queries)
