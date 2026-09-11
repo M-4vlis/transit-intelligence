@@ -8,8 +8,9 @@
   `http://edge-proxy:8080`;
 - token do connector tratado como segredo.
 
-Nenhuma regra de entrada HTTP/HTTPS deve ser criada na Oracle. A porta 443 do
-host continua dedicada ao SSH restrito.
+Nenhuma regra de entrada HTTP/HTTPS adicional deve ser criada na Oracle para o
+Transit. O conector é somente de saída. A porta 443 do host pertence à API HTTPS
+do Atualiza_materiais e o SSH deve permanecer somente na porta 22.
 
 ## Preparar o segredo na VPS
 

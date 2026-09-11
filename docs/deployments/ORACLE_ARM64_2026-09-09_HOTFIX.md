@@ -1,5 +1,10 @@
 # Oracle ARM64 production hotfix - 2026-09-09
 
+> Superseded on 2026-09-11: SSH on TCP 443 was removed because this shared VPS
+> already serves the Atualiza_materiais HTTPS API on that port. SSH now uses
+> TCP 22. The Transit public edge remains outbound-only through Cloudflare
+> Tunnel and does not require a host port.
+
 ## Outcome
 
 - Permanent SSH access was restored on TCP 443 using an Ed25519 key and a host

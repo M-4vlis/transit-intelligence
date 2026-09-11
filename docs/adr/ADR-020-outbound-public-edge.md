@@ -6,9 +6,9 @@ Accepted on 2026-09-10.
 
 ## Context
 
-The Oracle host already uses TCP 443 for restricted SSH access. Reassigning that
-port risks losing the reliable administration path, while publishing the API on
-an alternate host port would expose the origin and bypass edge controls.
+The Oracle host is shared with Atualiza_materiais, whose public HTTPS API owns
+TCP 443. The Transit API must therefore avoid publishing host ports. SSH uses
+TCP 22; assigning TCP 443 to SSH would make the materials API unreachable.
 
 ## Decision
 
@@ -26,8 +26,9 @@ isolated Nginx policy proxy between `cloudflared` and FastAPI.
 
 ## Consequences
 
-SSH can remain on port 443, and Oracle ingress does not need HTTP/HTTPS rules.
-Cloudflare becomes a public-edge dependency, but the API contract remains
-portable. Nginx keeps a minimum local abuse-control baseline if Cloudflare plan
-features change. Tunnel configuration must point only to
-`http://edge-proxy:8080`.
+SSH remains on port 22, while TCP 443 remains reserved for the existing
+Atualiza_materiais HTTPS API. Transit still needs no inbound HTTP/HTTPS rule
+because its connector is outbound-only. Cloudflare becomes a public-edge
+dependency, but the API contract remains portable. Nginx keeps a minimum local
+abuse-control baseline if Cloudflare plan features change. Tunnel configuration
+must point only to `http://edge-proxy:8080`.

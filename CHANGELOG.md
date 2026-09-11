@@ -4,8 +4,9 @@
 
 ### Added
 
-- outbound-only Cloudflare Tunnel deployment path that preserves SSH on port
-  443 and requires its connector token through a file-backed Compose secret;
+- outbound-only Cloudflare Tunnel deployment path that preserves TCP 443 for
+  the shared Atualiza_materiais HTTPS API and requires its connector token
+  through a file-backed Compose secret;
 - isolated Nginx edge proxy with public `/v1/` allowlist, read-only methods,
   request/connection limits, small payload cap and security headers;
 - separate tunnel/API networks that prevent `cloudflared` from reaching the API,
@@ -16,6 +17,8 @@
 
 - edge services publish no host ports and remain disabled behind a Compose
   profile until a real hostname and protected token file pass preflight;
+- edge preflight rejects SSH on TCP 443 to prevent an outage of the shared
+  Atualiza_materiais HTTPS API;
 - `/metrics`, `/health` and all non-`/v1/` paths remain unavailable publicly;
 - edge logs omit client IPs and query strings by default.
 

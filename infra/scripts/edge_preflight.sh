@@ -40,6 +40,17 @@ token_length="$(tr -d '\r\n' < "$token_file" | wc -c)"
 (( token_length >= 50 )) || fail "Cloudflare tunnel token is unexpectedly short"
 info "tunnel token file is populated"
 
+# This VPS is shared with Atualiza_materiais, whose public HTTPS API owns the
+# host's TCP 443. The outbound Cloudflare connector does not need a host port.
+# Refuse the historical SSH-on-443 configuration because it makes the materials
+# API unreachable even though both application stacks remain healthy.
+if command -v sshd >/dev/null 2>&1 \
+  && sshd -T 2>/dev/null \
+    | awk '$1 == "port" && $2 == "443" { found = 1 } END { exit found ? 0 : 1 }'; then
+  fail "SSH must not listen on TCP 443; it is reserved for the shared Atualiza_materiais HTTPS API"
+fi
+info "SSH does not claim the shared HTTPS port 443"
+
 docker compose \
   --env-file "$ENV_FILE" \
   -f "$COMPOSE_FILE" \
