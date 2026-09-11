@@ -14,6 +14,7 @@ permissions:
 jobs:
   build-apk:
     runs-on: ubuntu-latest
+    timeout-minutes: 35
     defaults:
       run:
         working-directory: mobile
@@ -46,14 +47,14 @@ jobs:
 
       - name: Build installable release APK
         working-directory: mobile/android
-        run: ./gradlew :app:assembleRelease --no-daemon
+        run: ./gradlew :app:assembleRelease -PreactNativeArchitectures=arm64-v8a --no-daemon
 
       - name: Record APK checksum
         run: sha256sum android/app/build/outputs/apk/release/app-release.apk > android/app/build/outputs/apk/release/app-release.apk.sha256
 
       - uses: actions/upload-artifact@v4
         with:
-          name: transit-intelligence-preview-${{ github.run_number }}
+          name: transit-intelligence-preview-arm64-${{ github.run_number }}
           path: |
             mobile/android/app/build/outputs/apk/release/app-release.apk
             mobile/android/app/build/outputs/apk/release/app-release.apk.sha256
