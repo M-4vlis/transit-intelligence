@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -100,15 +100,15 @@ async def test_valkey_cache_and_distributed_lease_contract() -> None:
         newer = position.model_copy(
             update={
                 "latitude": -22.91,
-                "observed_at": now.replace(microsecond=500000),
-                "received_at": now.replace(microsecond=500000),
+                "observed_at": now + timedelta(seconds=1),
+                "received_at": now + timedelta(seconds=1),
             }
         )
         older = position.model_copy(
             update={
                 "latitude": -22.99,
-                "observed_at": now.replace(microsecond=100000),
-                "received_at": now.replace(microsecond=600000),
+                "observed_at": now - timedelta(seconds=1),
+                "received_at": now + timedelta(seconds=2),
             }
         )
         assert await cache.put_many([newer]) == 1
