@@ -23,6 +23,8 @@
 
 - Rio GTFS acquisition now uses the municipality's current public endpoint at
   `dados.mobilidade.rio`; the former ArcGIS item became private and returns 403.
+- API loopback publishing uses a dedicated non-masqueraded bridge, preserving
+  host-only smoke access without granting the API outbound Internet access.
 
 ### Safety
 

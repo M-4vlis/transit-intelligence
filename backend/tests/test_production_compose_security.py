@@ -19,11 +19,16 @@ def test_data_services_are_not_published_to_host():
 
 
 def test_api_and_metrics_bind_only_to_loopback():
-    services = _compose()["services"]
+    compose = _compose()
+    services = compose["services"]
     assert services["api"]["ports"] == [
         "127.0.0.1:${TRANSIT_API_HOST_PORT:-18000}:8000"
     ]
     assert services["rio-ingestion"]["ports"] == ["127.0.0.1:9101:9101"]
+    assert "host-access" in services["api"]["networks"]
+    assert compose["networks"]["host-access"]["driver_opts"] == {
+        "com.docker.network.bridge.enable_ip_masquerade": "false"
+    }
 
 
 def test_public_edge_uses_outbound_tunnel_without_host_ports():

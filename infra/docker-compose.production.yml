@@ -129,6 +129,7 @@ services:
     ports:
       - "127.0.0.1:${TRANSIT_API_HOST_PORT:-18000}:8000"
     networks:
+      - host-access
       - api-edge
       - data
     depends_on:
@@ -518,6 +519,9 @@ networks:
     internal: true
   tunnel:
     internal: true
+  host-access:
+    driver_opts:
+      com.docker.network.bridge.enable_ip_masquerade: "false"
   egress:
 
 secrets:
