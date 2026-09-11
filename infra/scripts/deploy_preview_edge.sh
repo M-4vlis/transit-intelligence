@@ -4,7 +4,13 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 ENV_FILE="${1:-$ROOT_DIR/.env.production}"
 COMPOSE_FILE="$ROOT_DIR/infra/docker-compose.production.yml"
-COMPOSE=(docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE")
+COMPOSE=(
+  docker compose
+  --env-file "$ENV_FILE"
+  -f "$COMPOSE_FILE"
+  --profile edge
+  --profile preview
+)
 
 [[ -f "$ENV_FILE" ]] || { printf 'ERROR: missing env file: %s\n' "$ENV_FILE" >&2; exit 1; }
 
