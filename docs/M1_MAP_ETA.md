@@ -32,12 +32,12 @@ degrade com transparência quando o GPS estiver antigo.
 
 ### M1.2 — Mapa mobile
 
-- [ ] criar Expo + TypeScript strict + Expo Router;
-- [ ] definir identificador de pacote provisório e neutro;
-- [ ] implementar adapter de mapas sem acoplamento ao fornecedor;
-- [ ] consumir somente a API própria;
-- [ ] exibir idade e estado de qualidade do GPS;
-- [ ] armazenar favoritos localmente, sem cadastro obrigatório.
+- [x] criar Expo + TypeScript strict + Expo Router;
+- [x] definir identificador de pacote provisório e neutro;
+- [x] implementar adapter de mapas sem acoplamento ao fornecedor;
+- [x] consumir somente a API própria;
+- [x] exibir idade e estado de qualidade do GPS;
+- [x] armazenar favoritos localmente, sem cadastro obrigatório.
 
 ### M1.3 — ETA V0
 

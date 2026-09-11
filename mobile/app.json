@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "Transit Intelligence",
+    "slug": "transit-intelligence",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "transitintelligence",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "app.transitintelligence.mobile",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "app.transitintelligence.mobile",
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "output": "static"
+    },
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

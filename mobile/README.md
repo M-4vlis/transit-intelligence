@@ -1,13 +1,35 @@
-# Mobile
+# Aplicativo móvel
 
-Stack aprovada: React Native + Expo + TypeScript.
+Base do M1.2 em Expo SDK 57, React Native, TypeScript strict e Expo Router.
 
-A criação efetiva do app Expo ficará para o próximo marco após definição do identificador de pacote e nome comercial provisório. O projeto deverá nascer com:
-- TypeScript strict;
-- Expo Router;
-- adapter de mapas;
-- camada API tipada;
-- storage seguro;
-- feature flags;
-- observabilidade;
-- lint/test/CI.
+## Decisões já aplicadas
+
+- identificador neutro: `app.transitintelligence.mobile`;
+- toda leitura de transporte passa pela API própria;
+- acesso direto às fontes municipais é recusado pela configuração do app;
+- mapas ficam atrás de `MapProviderAdapter`;
+- idade e qualidade do GPS são mostradas ao usuário;
+- linhas favoritas ficam apenas no aparelho, sem conta obrigatória.
+
+## Executar
+
+```bash
+cp .env.example .env.local
+corepack enable
+pnpm install
+pnpm start
+```
+
+Defina `EXPO_PUBLIC_API_BASE_URL`. Em desenvolvimento, HTTP local é aceito. Fora do
+modo de desenvolvimento, somente HTTPS é permitido.
+
+## Verificar
+
+```bash
+pnpm run lint
+pnpm run typecheck
+pnpm test
+```
+
+O endereço público definitivo ainda depende de conectar um domínio ao túnel
+Cloudflare já provisionado. Essa pendência não altera a arquitetura do app.
