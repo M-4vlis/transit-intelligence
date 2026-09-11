@@ -8,9 +8,11 @@
   `http://edge-proxy:8080`;
 - token do connector tratado como segredo.
 
-Nenhuma regra de entrada HTTP/HTTPS adicional deve ser criada na Oracle para o
-Transit. O conector é somente de saída. A porta 443 do host pertence à API HTTPS
-do Atualiza_materiais e o SSH deve permanecer somente na porta 22.
+Nenhuma regra de entrada deve ser criada na Oracle em nome do Transit
+Intelligence. Nesta VPS compartilhada, 443 é separada por protocolo: SSH segue
+para o daemon administrativo local e HTTPS segue para o Caddy do outro projeto.
+O edge do Transit continua exclusivamente no túnel de saída e não publica porta
+no host.
 
 ## Preparar o segredo na VPS
 

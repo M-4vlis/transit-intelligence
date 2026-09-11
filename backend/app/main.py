@@ -15,6 +15,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     pool = None
     cache_client = None
     if settings.infrastructure_enabled:
+        from app.infrastructure.gtfs_postgres import PostgresGtfsCatalog
         from app.infrastructure.postgres import (
             PostgresPositionRepository,
             create_postgres_pool,
@@ -24,6 +25,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         pool = await create_postgres_pool(settings.database_url)
         cache_client = await create_valkey_client(settings.cache_url)
         app.state.position_repository = PostgresPositionRepository(pool)
+        app.state.gtfs_catalog = PostgresGtfsCatalog(pool)
         app.state.live_cache = ValkeyLivePositionCache(
             cache_client,
             ttl_seconds=settings.live_position_ttl_seconds,

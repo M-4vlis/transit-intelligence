@@ -12,11 +12,8 @@ class Settings(BaseSettings):
 
     rio_realtime_url: str = "https://dados.mobilidade.rio/gps/sppo"
     rio_allowed_source_hosts: str = "dados.mobilidade.rio"
-    rio_gtfs_url: str = (
-        "https://www.arcgis.com/sharing/rest/content/items/"
-        "8ffe62ad3b2f42e49814bf941654ea6c/data"
-    )
-    rio_gtfs_allowed_source_hosts: str = "www.arcgis.com"
+    rio_gtfs_url: str = "https://dados.mobilidade.rio/gtfs/schedule"
+    rio_gtfs_allowed_source_hosts: str = "dados.mobilidade.rio"
     gtfs_max_compressed_bytes: int = 64 * 1024 * 1024
     gtfs_max_uncompressed_bytes: int = 512 * 1024 * 1024
     gtfs_max_members: int = 128
@@ -84,9 +81,7 @@ class Settings(BaseSettings):
 
     def validate_destructive_retention(self) -> None:
         if self.destructive_retention_enabled and not self.retention_is_safe:
-            raise ValueError(
-                "destructive retention requires durable external archive storage"
-            )
+            raise ValueError("destructive retention requires durable external archive storage")
 
     @property
     def allowed_source_hosts(self) -> set[str]:

@@ -7,8 +7,8 @@ x-app-environment: &app-environment
   CACHE_URL: redis://:${CACHE_PASSWORD:?CACHE_PASSWORD is required}@redis:6379/0
   RIO_REALTIME_URL: ${RIO_REALTIME_URL:-https://dados.mobilidade.rio/gps/sppo}
   RIO_ALLOWED_SOURCE_HOSTS: dados.mobilidade.rio
-  RIO_GTFS_URL: ${RIO_GTFS_URL:-https://www.arcgis.com/sharing/rest/content/items/8ffe62ad3b2f42e49814bf941654ea6c/data}
-  RIO_GTFS_ALLOWED_SOURCE_HOSTS: www.arcgis.com
+  RIO_GTFS_URL: ${RIO_GTFS_URL:-https://dados.mobilidade.rio/gtfs/schedule}
+  RIO_GTFS_ALLOWED_SOURCE_HOSTS: dados.mobilidade.rio
   GTFS_MAX_COMPRESSED_BYTES: ${GTFS_MAX_COMPRESSED_BYTES:-67108864}
   GTFS_MAX_UNCOMPRESSED_BYTES: ${GTFS_MAX_UNCOMPRESSED_BYTES:-536870912}
   GTFS_MAX_MEMBERS: ${GTFS_MAX_MEMBERS:-128}
@@ -417,6 +417,28 @@ services:
       <<: *app-environment
     networks:
       - egress
+    restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  rio-gtfs-import:
+    profiles: ["maintenance"]
+    build:
+      context: ../backend
+    entrypoint: ["python", "scripts/import_rio_gtfs.py"]
+    environment:
+      <<: *app-environment
+    networks:
+      - data
+      - egress
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: "no"
     read_only: true
     tmpfs:

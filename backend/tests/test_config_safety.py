@@ -63,8 +63,8 @@ def test_unknown_archive_kind_never_authorizes_destructive_retention() -> None:
 def test_gtfs_source_is_separately_allowlisted_and_bounded() -> None:
     settings = Settings(_env_file=None)
 
-    assert settings.gtfs_allowed_source_hosts == {"www.arcgis.com"}
-    assert settings.rio_gtfs_url.startswith("https://www.arcgis.com/")
+    assert settings.gtfs_allowed_source_hosts == {"dados.mobilidade.rio"}
+    assert settings.rio_gtfs_url == "https://dados.mobilidade.rio/gtfs/schedule"
     assert settings.gtfs_max_compressed_bytes == 64 * 1024 * 1024
     assert settings.gtfs_max_uncompressed_bytes == 512 * 1024 * 1024
 

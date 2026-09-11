@@ -62,8 +62,10 @@ Oracle. A arquitetura preparada usa Cloudflare Tunnel de saída, proxy Nginx
 isolado, allowlist de rotas `/v1/`, limites de requisição/conexão e bloqueio de
 health/metrics. A ativação externa depende de domínio e credencial Cloudflare.
 
-As próximas fatias do M1 importam o GTFS versionado no PostGIS, publicam o
-catálogo de linhas/paradas, criam o mapa mobile e entregam o ETA V0.
+O catálogo GTFS versionado está em implementação: snapshots são identificados
+por SHA-256, importados em uma transação e ativados sem janela de dados mistos.
+As APIs paginadas `/v1/routes` e `/v1/stops/nearby` usam exclusivamente o
+snapshot ativo. As fatias seguintes criam o mapa mobile e entregam o ETA V0.
 
 Veja `docs/M0_TRANSIT_CORE.md` e `docs/VALIDATION.md`.
 

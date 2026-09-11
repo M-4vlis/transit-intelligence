@@ -11,14 +11,25 @@
   request/connection limits, small payload cap and security headers;
 - separate tunnel/API networks that prevent `cloudflared` from reaching the API,
   PostgreSQL or Valkey without crossing the proxy;
-- edge preflight, internal policy smoke and deployment runbook.
+- edge preflight, internal policy smoke and deployment runbook;
+- versioned PostGIS catalog for GTFS agencies, routes, stops, trips, stop times,
+  calendars and shapes;
+- bounded GTFS importer with SHA-256 idempotency, transactional activation and
+  explicit rollback to any previously imported snapshot;
+- paginated route search and nearby-stop API endpoints backed by the active
+  static snapshot.
+
+### Fixed
+
+- Rio GTFS acquisition now uses the municipality's current public endpoint at
+  `dados.mobilidade.rio`; the former ArcGIS item became private and returns 403.
 
 ### Safety
 
 - edge services publish no host ports and remain disabled behind a Compose
   profile until a real hostname and protected token file pass preflight;
-- edge preflight rejects SSH on TCP 443 to prevent an outage of the shared
-  Atualiza_materiais HTTPS API;
+- edge preflight rejects a direct `sshd` listener on TCP 443; the host-level
+  protocol multiplexer preserves both the shared HTTPS API and key-only SSH;
 - `/metrics`, `/health` and all non-`/v1/` paths remain unavailable publicly;
 - edge logs omit client IPs and query strings by default.
 
