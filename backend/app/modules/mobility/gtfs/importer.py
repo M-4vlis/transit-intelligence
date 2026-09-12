@@ -144,6 +144,7 @@ def _stop_time(row: dict[str, str], snapshot_id: str) -> tuple[Any, ...]:
         _integer(row.get("pickup_type")),
         _integer(row.get("drop_off_type")),
         _integer(row.get("timepoint")),
+        _number(row.get("shape_dist_traveled")),
     )
 
 
@@ -263,6 +264,7 @@ _FILE_SPECS: tuple[_FileSpec, ...] = (
             "pickup_type",
             "drop_off_type",
             "timepoint",
+            "shape_dist_traveled",
         ),
         _stop_time,
     ),

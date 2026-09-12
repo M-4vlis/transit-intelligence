@@ -142,6 +142,7 @@ class RioVehiclePositionRaw(BaseModel):
             vehicle_id=self.id_veiculo,
             route_id=route_id,
             trip_id=self.trip_id,
+            shape_id=self.shape_id,
             latitude=self.latitude,
             longitude=self.longitude,
             speed_mps=(self.velocidade / 3.6) if self.velocidade is not None else None,

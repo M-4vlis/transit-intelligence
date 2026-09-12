@@ -18,6 +18,7 @@ def sample_position() -> VehiclePosition:
         agency_id="br-rj-rio-smtr-sppo",
         vehicle_id="D12345",
         route_id="457",
+        shape_id="SH1",
         latitude=-22.9,
         longitude=-43.2,
         observed_at=datetime(2026, 9, 1, 13, tzinfo=UTC),
@@ -82,6 +83,7 @@ def test_route_vehicles_endpoint() -> None:
             response = client.get("/v1/routes/457/vehicles")
         assert response.status_code == 200
         assert response.json()[0]["vehicle_id"] == "D12345"
+        assert response.json()[0]["shape_id"] == "SH1"
     finally:
         app.dependency_overrides.clear()
 

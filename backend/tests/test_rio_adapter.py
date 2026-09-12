@@ -23,6 +23,8 @@ def test_rio_raw_normalizes_legacy_field_names() -> None:
         {
             "ordem": "D12345",
             "linha": "457",
+            "trip_id": "T1",
+            "shape_id": "SH1",
             "latitude": -22.9,
             "longitude": -43.2,
             "velocidade": 36,
@@ -35,6 +37,8 @@ def test_rio_raw_normalizes_legacy_field_names() -> None:
     assert canonical.agency_id == RIO_AGENCY
     assert canonical.vehicle_id == "D12345"
     assert canonical.route_id == "457"
+    assert canonical.trip_id == "T1"
+    assert canonical.shape_id == "SH1"
     assert canonical.speed_mps == pytest.approx(10.0)
     assert canonical.bearing_deg == 0
     assert canonical.observed_at.tzinfo is not None

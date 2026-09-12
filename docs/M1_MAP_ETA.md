@@ -48,6 +48,21 @@ degrade com transparência quando o GPS estiver antigo.
 - [ ] medir MAE e erro P50/P90 em replay histórico;
 - [ ] impedir que um ETA sem evidência seja apresentado como confiável.
 
+### M1.4 — Refinamento do mapa após o ETA V0
+
+- [ ] solicitar localização somente por ação do usuário e centralizar o mapa
+  nela, mantendo uma posição inicial segura quando a permissão for negada;
+- [ ] permitir mover, ampliar e recentralizar o mapa, com atualização explícita
+  da área visível;
+- [ ] diferenciar visualmente paradas e veículos com ícones, legenda acessível e
+  identificação ao toque;
+- [ ] reduzir sobreposição de marcadores por filtro de linha e agrupamento;
+- [ ] validar legibilidade, gestos e estados de permissão em aparelho real.
+
+Esses itens foram registrados após o primeiro teste em aparelho da v0.1.2. O
+mapa funcional atual permanece deliberadamente simples enquanto o ETA V0 prova
+o vínculo entre GPS e GTFS.
+
 ## Arquitetura de borda escolhida
 
 ```text

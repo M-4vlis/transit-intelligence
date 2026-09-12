@@ -27,7 +27,8 @@ GTFS = {
     "stops.txt": "stop_id,stop_name,stop_lat,stop_lon\nS1,Central,-22.9,-43.2\n",
     "trips.txt": ("route_id,service_id,trip_id,shape_id\n483,WK,T1,SH1\n"),
     "stop_times.txt": (
-        "trip_id,arrival_time,departure_time,stop_id,stop_sequence\nT1,25:01:02,25:01:02,S1,1\n"
+        "trip_id,arrival_time,departure_time,stop_id,stop_sequence,shape_dist_traveled\n"
+        "T1,25:01:02,25:01:02,S1,1,123.4\n"
     ),
     "calendar_dates.txt": "service_id,date,exception_type\nWK,20260911,1\n",
     "shapes.txt": ("shape_id,shape_pt_lat,shape_pt_lon,shape_pt_sequence\nSH1,-22.9,-43.2,1\n"),
@@ -113,6 +114,7 @@ async def test_snapshot_import_copies_all_supported_files_and_activates(tmp_path
     assert result.row_counts["routes.txt"] == 1
     assert result.row_counts["shapes.txt"] == 1
     assert connection.copied["gtfs_stop_times"][0][3] == 90_062
+    assert connection.copied["gtfs_stop_times"][0][-1] == 123.4
     assert any("status = 'active'" in query for query in connection.queries)
 
 

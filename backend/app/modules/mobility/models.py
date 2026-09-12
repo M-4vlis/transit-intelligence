@@ -21,6 +21,7 @@ class VehiclePosition(BaseModel):
     vehicle_id: str
     route_id: str
     trip_id: str | None = None
+    shape_id: str | None = None
     latitude: float = Field(ge=-90, le=90)
     longitude: float = Field(ge=-180, le=180)
     speed_mps: float | None = Field(default=None, ge=0)

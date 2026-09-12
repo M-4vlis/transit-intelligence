@@ -5,6 +5,7 @@ export interface VehiclePosition {
   vehicle_id: string;
   route_id: string;
   trip_id: string | null;
+  shape_id: string | null;
   latitude: number;
   longitude: number;
   speed_mps: number | null;

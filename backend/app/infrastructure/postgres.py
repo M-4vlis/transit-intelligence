@@ -54,21 +54,21 @@ class PostgresPositionRepository:
                             $1::text[], $2::text[], $3::text[], $4::text[], $5::text[],
                             $6::double precision[], $7::double precision[], $8::real[], $9::real[],
                             $10::timestamptz[], $11::timestamptz[], $12::text[], $13::text[],
-                            $14::real[]
+                            $14::real[], $15::text[]
                         ) AS t(
                             ingest_key, agency_id, vehicle_id, route_id, trip_id,
                             latitude, longitude, speed_mps, bearing_deg, observed_at,
-                            received_at, source, quality_status, quality_score
+                            received_at, source, quality_status, quality_score, shape_id
                         )
                     ), inserted_rows AS (
                         INSERT INTO transit.vehicle_positions (
-                            ingest_key, agency_id, vehicle_id, route_id, trip_id,
+                            ingest_key, agency_id, vehicle_id, route_id, trip_id, shape_id,
                             latitude, longitude, speed_mps, bearing_deg,
                             observed_at, received_at, source, quality_status, quality_score,
                             location
                         )
                         SELECT
-                            ingest_key, agency_id, vehicle_id, route_id, trip_id,
+                            ingest_key, agency_id, vehicle_id, route_id, trip_id, shape_id,
                             latitude, longitude, speed_mps, bearing_deg,
                             observed_at, received_at, source, quality_status, quality_score,
                             ST_SetSRID(ST_MakePoint(longitude, latitude),4326)::geography
@@ -92,6 +92,7 @@ class PostgresPositionRepository:
                 [p.source for p in positions],
                 [p.quality_status.value for p in positions],
                 [p.quality_score for p in positions],
+                [p.shape_id for p in positions],
             )
 
         return int(inserted or 0)
@@ -111,7 +112,7 @@ class PostgresPositionRepository:
                 """
                 WITH latest AS (
                     SELECT DISTINCT ON (agency_id, vehicle_id)
-                        agency_id, vehicle_id, route_id, trip_id,
+                        agency_id, vehicle_id, route_id, trip_id, shape_id,
                         latitude, longitude, speed_mps, bearing_deg,
                         observed_at, received_at, source, quality_status, quality_score,
                         ST_Distance(
@@ -129,7 +130,7 @@ class PostgresPositionRepository:
                     ORDER BY agency_id, vehicle_id, observed_at DESC
                 )
                 SELECT
-                    agency_id, vehicle_id, route_id, trip_id,
+                    agency_id, vehicle_id, route_id, trip_id, shape_id,
                     latitude, longitude, speed_mps, bearing_deg,
                     observed_at, received_at, source, quality_status, quality_score
                 FROM latest
@@ -377,7 +378,7 @@ class PostgresHistoricalPositionSource:
             cursor = conn.cursor(
                 """
                     SELECT
-                        agency_id, vehicle_id, route_id, trip_id,
+                        agency_id, vehicle_id, route_id, trip_id, shape_id,
                         latitude, longitude, speed_mps, bearing_deg,
                         observed_at, received_at, source, quality_status, quality_score
                     FROM transit.vehicle_positions

@@ -47,6 +47,7 @@ async def test_postgis_repository_is_idempotent_and_supports_nearby_query() -> N
             agency_id="br-rj-rio-smtr-sppo",
             vehicle_id="D12345",
             route_id="457",
+            shape_id="SH1",
             latitude=-22.912345,
             longitude=-43.203456,
             speed_mps=7.5,
@@ -67,6 +68,7 @@ async def test_postgis_repository_is_idempotent_and_supports_nearby_query() -> N
         )
         assert len(nearby) == 1
         assert nearby[0].vehicle_id == "D12345"
+        assert nearby[0].shape_id == "SH1"
     finally:
         await pool.close()
 
