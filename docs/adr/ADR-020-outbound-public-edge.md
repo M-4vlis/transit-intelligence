@@ -21,6 +21,8 @@ isolated Nginx policy proxy between `cloudflared` and FastAPI.
 - `cloudflared` and FastAPI do not share a Docker network;
 - Nginx is the only bridge between tunnel and API networks;
 - only bounded read traffic under `/v1/` is proxied;
+- the edge has restricted egress to fetch identified OpenStreetMap tiles and
+  caches successful responses for at least seven days;
 - health, metrics, documentation and other paths fail closed;
 - the connector token is mounted from a protected file, never an environment
   value committed to Git;
@@ -33,5 +35,6 @@ key-only administrative SSH; direct port 22 ingress remains denied. Transit
 still needs no inbound HTTP/HTTPS rule because its connector is outbound-only.
 Cloudflare becomes a public-edge dependency, but the API contract remains
 portable. Nginx keeps a minimum local abuse-control baseline if Cloudflare plan
-features change. Tunnel configuration must point only to
-`http://edge-proxy:8080`.
+features change. Its outbound access is used only by the narrowly matched tile
+route; it still has no data-network access. Tunnel configuration must point
+only to `http://edge-proxy:8080`.

@@ -38,7 +38,11 @@ def test_public_edge_uses_outbound_tunnel_without_host_ports():
     assert "ports" not in services["edge-proxy"]
     assert "ports" not in services["cloudflared"]
     assert set(services["cloudflared"]["networks"]) == {"tunnel", "egress"}
-    assert set(services["edge-proxy"]["networks"]) == {"tunnel", "api-edge"}
+    assert set(services["edge-proxy"]["networks"]) == {
+        "tunnel",
+        "api-edge",
+        "egress",
+    }
     assert compose["networks"]["tunnel"]["internal"] is True
     assert compose["networks"]["api-edge"]["internal"] is True
 
@@ -65,6 +69,17 @@ def test_edge_proxy_only_publishes_bounded_v1_reads():
     assert "location / {" in nginx
     assert "return 404" in nginx
     assert "proxy_pass http://transit_api" in nginx
+
+
+def test_map_tiles_use_an_identified_rate_limited_cache():
+    nginx = (ROOT / "infra" / "edge" / "nginx.conf").read_text(encoding="utf-8")
+
+    assert "location ~ ^/v1/map/tiles/" in nginx
+    assert "proxy_pass https://tile.openstreetmap.org/" in nginx
+    assert "User-Agent \"TransitIntelligence/" in nginx
+    assert "proxy_cache osm_tiles" in nginx
+    assert "proxy_cache_valid 200 7d" in nginx
+    assert "limit_req zone=map_tile_rate" in nginx
 
 
 def test_internal_data_network_and_valkey_auth_are_required():

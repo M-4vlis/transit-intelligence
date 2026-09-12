@@ -61,7 +61,7 @@ Cloudflare (TLS/WAF)
 cloudflared -- rede tunnel
       |
       v
-Nginx policy proxy -- redes tunnel + api-edge
+Nginx policy proxy -- redes tunnel + api-edge + egress restrito para tiles
       |
       v
 FastAPI -- redes api-edge + data
