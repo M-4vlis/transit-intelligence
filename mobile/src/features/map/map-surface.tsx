@@ -1,7 +1,7 @@
 import type { TransitMapProps } from './types';
-import { reactNativeMapsAdapter } from './react-native-maps-adapter';
+import { osmRasterMapAdapter } from './osm-raster-map-adapter';
 
-const activeMapAdapter = reactNativeMapsAdapter;
+const activeMapAdapter = osmRasterMapAdapter;
 
 export function MapSurface(props: TransitMapProps) {
   return <activeMapAdapter.Surface {...props} />;
