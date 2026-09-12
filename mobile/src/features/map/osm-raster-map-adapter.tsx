@@ -20,8 +20,10 @@ interface ViewportSize {
   height: number;
 }
 
-interface RasterTile extends PixelPoint {
+interface RasterTile {
   key: string;
+  left: number;
+  top: number;
   uri: string;
 }
 
