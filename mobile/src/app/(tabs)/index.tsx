@@ -1,11 +1,12 @@
 import * as Location from 'expo-location';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
 import { colors, spacing } from '@/constants/theme';
 import { MapSurface } from '@/features/map/map-surface';
 import type { MapCenter } from '@/features/map/types';
+import { presentRouteLabel, uniqueRouteIds } from '@/features/map/route-filter';
 import { useNearbyTransit } from '@/features/map/use-nearby-transit';
 import { presentGpsQuality } from '@/features/quality/gps-quality';
 
@@ -24,18 +25,32 @@ export default function MapScreen() {
   const [userLocation, setUserLocation] = useState<MapCenter | null>(null);
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
   const { stops, vehicles, loading, error, refresh } = useNearbyTransit(loadedCenter);
   const areaMoved = centersDiffer(center, loadedCenter);
+  const routeIds = useMemo(
+    () => uniqueRouteIds(vehicles.map((vehicle) => vehicle.route_id)),
+    [vehicles],
+  );
+  const activeRouteId =
+    selectedRouteId && routeIds.includes(selectedRouteId) ? selectedRouteId : null;
+  const displayedVehicles = useMemo(
+    () =>
+      activeRouteId
+        ? vehicles.filter((vehicle) => vehicle.route_id === activeRouteId)
+        : vehicles,
+    [activeRouteId, vehicles],
+  );
   const qualityCounts = useMemo(
     () =>
-      vehicles.reduce(
+      displayedVehicles.reduce(
         (counts, vehicle) => {
           counts[presentGpsQuality(vehicle).status] += 1;
           return counts;
         },
         { good: 0, degraded: 0, stale: 0, invalid: 0 },
       ),
-    [vehicles],
+    [displayedVehicles],
   );
 
   const updateVisibleArea = () => {
@@ -78,19 +93,55 @@ export default function MapScreen() {
       subtitle="Arraste o mapa ou use sua localização para explorar outra área."
       scroll={false}>
       <View style={styles.summaryRow}>
-        <Text style={styles.summary}>{vehicles.length} ônibus</Text>
+        <Text style={styles.summary}>{displayedVehicles.length} ônibus</Text>
         <Text style={styles.summary}>{stops.length} pontos</Text>
         <View style={styles.qualityPill}>
           <Text style={styles.qualityText}>{qualityCounts.good} com GPS atual</Text>
         </View>
       </View>
 
+      <ScrollView
+        accessibilityLabel="Filtro de linhas no mapa"
+        contentContainerStyle={styles.filterRow}
+        horizontal
+        showsHorizontalScrollIndicator={false}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ selected: activeRouteId === null }}
+          onPress={() => setSelectedRouteId(null)}
+          style={[styles.filterChip, activeRouteId === null && styles.filterChipSelected]}>
+          <Text
+            style={[
+              styles.filterChipText,
+              activeRouteId === null && styles.filterChipTextSelected,
+            ]}>
+            Todas
+          </Text>
+        </Pressable>
+        {routeIds.map((routeId) => {
+          const selected = routeId === activeRouteId;
+          return (
+            <Pressable
+              accessibilityLabel={`Filtrar linha ${presentRouteLabel(routeId)}`}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+              key={routeId}
+              onPress={() => setSelectedRouteId(selected ? null : routeId)}
+              style={[styles.filterChip, selected && styles.filterChipSelected]}>
+              <Text style={[styles.filterChipText, selected && styles.filterChipTextSelected]}>
+                {presentRouteLabel(routeId)}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+
       <View style={styles.mapCard}>
         <MapSurface
           center={center}
           stops={stops}
           userLocation={userLocation}
-          vehicles={vehicles}
+          vehicles={displayedVehicles}
           onCenterChange={setCenter}
         />
         {loading ? (
@@ -135,6 +186,21 @@ const styles = StyleSheet.create({
   summary: { color: colors.text, fontSize: 13, fontWeight: '700' },
   qualityPill: { backgroundColor: colors.primarySoft, borderRadius: 20, padding: spacing.sm },
   qualityText: { color: colors.good, fontSize: 12, fontWeight: '700' },
+  filterRow: { gap: 7, paddingVertical: 1 },
+  filterChip: {
+    minWidth: 54,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  filterChipSelected: { borderColor: colors.primary, backgroundColor: colors.primary },
+  filterChipText: { color: colors.text, fontSize: 12, fontWeight: '700' },
+  filterChipTextSelected: { color: '#FFFFFF' },
   mapCard: {
     flex: 1,
     minHeight: 340,
