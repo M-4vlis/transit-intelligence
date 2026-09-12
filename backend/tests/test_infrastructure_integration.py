@@ -152,7 +152,7 @@ async def test_gtfs_stop_distance_rehydration_uses_real_postgres(tmp_path: Path)
 async def test_vehicle_is_projected_to_shape_and_upcoming_stops(tmp_path: Path) -> None:
     from app.infrastructure.gtfs_postgres import PostgresGtfsCatalog
     from app.modules.mobility.gtfs.importer import PostgresGtfsImporter
-    from app.modules.mobility.gtfs.models import JourneyMatchMethod
+    from app.modules.mobility.gtfs.models import EtaMethod, JourneyMatchMethod
     from app.modules.mobility.gtfs.validator import validate_gtfs_snapshot
 
     database_url, _ = _require_integration_env()
@@ -166,18 +166,25 @@ async def test_vehicle_is_projected_to_shape_and_upcoming_stops(tmp_path: Path) 
             source_url="https://dados.mobilidade.rio/gtfs/schedule",
         )
         await PostgresGtfsImporter(pool).import_snapshot(path, manifest)
-        position = VehiclePosition(
-            agency_id="br-rj-rio-smtr-sppo",
-            vehicle_id="D12345",
-            route_id="483",
-            trip_id="T1",
-            shape_id="SH1",
-            latitude=-22.9,
-            longitude=-43.1994,
-            observed_at=datetime.now(UTC),
-            received_at=datetime.now(UTC),
-            source="integration-test",
+        observed_at = datetime.now(UTC).replace(microsecond=0)
+        positions = tuple(
+            VehiclePosition(
+                agency_id="br-rj-rio-smtr-sppo",
+                vehicle_id="D12345",
+                route_id="483",
+                trip_id="T1",
+                shape_id="SH1",
+                latitude=-22.9,
+                longitude=-43.1994,
+                speed_mps=speed,
+                observed_at=observed_at - timedelta(seconds=seconds_ago),
+                received_at=observed_at - timedelta(seconds=seconds_ago),
+                source="integration-test",
+            )
+            for seconds_ago, speed in ((120, 4.0), (60, 5.0), (0, 6.0))
         )
+        await PostgresPositionRepository(pool).save_many(positions)
+        position = positions[-1]
 
         result = await PostgresGtfsCatalog(pool).match_vehicle_to_upcoming_stops(
             position=position,
@@ -191,6 +198,12 @@ async def test_vehicle_is_projected_to_shape_and_upcoming_stops(tmp_path: Path) 
         assert result.projected_shape_dist_traveled == pytest.approx(60, abs=0.1)
         assert [stop.stop_id for stop in result.upcoming_stops] == ["S2", "S3"]
         assert result.upcoming_stops[0].shape_distance_ahead == pytest.approx(40, abs=0.1)
+        assert result.eta_evidence is not None
+        assert result.eta_evidence.method is EtaMethod.VEHICLE_RECENT_SPEED
+        assert result.eta_evidence.sample_count == 3
+        assert result.eta_evidence.speed_median_mps == pytest.approx(5)
+        assert result.upcoming_stops[0].eta_seconds is not None
+        assert result.upcoming_stops[0].eta_upper_seconds is not None
     finally:
         await pool.close()
 

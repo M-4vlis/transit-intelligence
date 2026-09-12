@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any
 
+from app.modules.mobility.eta import MAX_POSITION_AGE_SECONDS, estimate_stop_arrivals
 from app.modules.mobility.gtfs.models import (
+    EtaEvidence,
+    EtaMethod,
+    EtaUnavailableReason,
     GtfsRoute,
     GtfsRoutePage,
     GtfsStopPage,
@@ -14,10 +19,75 @@ from app.modules.mobility.gtfs.models import (
 )
 from app.modules.mobility.models import VehiclePosition
 
+_MIN_ETA_SPEED_MPS = 0.8
+_MAX_ETA_SPEED_MPS = 22.22
+_VEHICLE_SPEED_WINDOW_SECONDS = 300
+_VEHICLE_MIN_SAMPLES = 3
+_ROUTE_SHAPE_SPEED_WINDOW_SECONDS = 600
+_ROUTE_SHAPE_MIN_SAMPLES = 20
+
 
 class PostgresGtfsCatalog:
     def __init__(self, pool: Any) -> None:
         self.pool = pool
+
+    @staticmethod
+    async def _speed_evidence(conn: Any, position: VehiclePosition) -> EtaEvidence | None:
+        candidates = (
+            (
+                EtaMethod.VEHICLE_RECENT_SPEED,
+                _VEHICLE_SPEED_WINDOW_SECONDS,
+                _VEHICLE_MIN_SAMPLES,
+                True,
+            ),
+            (
+                EtaMethod.ROUTE_SHAPE_RECENT_SPEED,
+                _ROUTE_SHAPE_SPEED_WINDOW_SECONDS,
+                _ROUTE_SHAPE_MIN_SAMPLES,
+                False,
+            ),
+        )
+        for method, window_seconds, minimum_samples, vehicle_only in candidates:
+            row = await conn.fetchrow(
+                """
+                SELECT
+                    count(*)::bigint AS sample_count,
+                    percentile_cont(ARRAY[0.25,0.5,0.75])
+                        WITHIN GROUP (ORDER BY speed_mps) AS speed_percentiles
+                FROM transit.vehicle_positions
+                WHERE route_id = $1
+                  AND shape_id = $2
+                  AND observed_at >= $3 - make_interval(secs => $4)
+                  AND observed_at <= $3
+                  AND speed_mps BETWEEN $5 AND $6
+                  AND quality_status <> 'invalid'
+                  AND (
+                    NOT $7
+                    OR (agency_id = $8 AND vehicle_id = $9)
+                  )
+                """,
+                position.route_id,
+                position.shape_id,
+                position.observed_at,
+                window_seconds,
+                _MIN_ETA_SPEED_MPS,
+                _MAX_ETA_SPEED_MPS,
+                vehicle_only,
+                position.agency_id,
+                position.vehicle_id,
+            )
+            sample_count = int(row["sample_count"] or 0)
+            percentiles = row["speed_percentiles"]
+            if sample_count >= minimum_samples and percentiles is not None:
+                return EtaEvidence(
+                    method=method,
+                    sample_count=sample_count,
+                    window_seconds=window_seconds,
+                    speed_p25_mps=float(percentiles[0]),
+                    speed_median_mps=float(percentiles[1]),
+                    speed_p75_mps=float(percentiles[2]),
+                )
+        return None
 
     async def search_routes(
         self,
@@ -154,12 +224,22 @@ class PostgresGtfsCatalog:
         limit: int,
         max_projection_distance_m: float,
     ) -> VehicleJourneyMatch:
+        evaluated_at = datetime.now(UTC)
+        observed_at = position.observed_at
+        if observed_at.tzinfo is None:
+            observed_at = observed_at.replace(tzinfo=UTC)
+        position_age_seconds = max(
+            0.0,
+            (evaluated_at - observed_at.astimezone(UTC)).total_seconds(),
+        )
         base = {
             "vehicle_id": position.vehicle_id,
             "route_id": position.route_id,
             "source_trip_id": position.trip_id,
             "shape_id": position.shape_id,
             "observed_at": position.observed_at,
+            "evaluated_at": evaluated_at,
+            "position_age_seconds": position_age_seconds,
         }
         if position.shape_id is None:
             return VehicleJourneyMatch(
@@ -300,7 +380,26 @@ class PostgresGtfsCatalog:
                 limit,
             )
 
+            eta_evidence = None
+            eta_unavailable_reason = None
+            if rows:
+                if position_age_seconds > MAX_POSITION_AGE_SECONDS:
+                    eta_unavailable_reason = EtaUnavailableReason.STALE_POSITION
+                else:
+                    eta_evidence = await self._speed_evidence(conn, position)
+                    if eta_evidence is None:
+                        eta_unavailable_reason = (
+                            EtaUnavailableReason.INSUFFICIENT_SPEED_EVIDENCE
+                        )
+
         upcoming_stops = tuple(UpcomingGtfsStop.model_validate(dict(row)) for row in rows)
+        if upcoming_stops and eta_evidence is not None:
+            upcoming_stops = estimate_stop_arrivals(
+                upcoming_stops,
+                evidence=eta_evidence,
+                observed_at=observed_at,
+                evaluated_at=evaluated_at,
+            )
         return VehicleJourneyMatch(
             available=bool(upcoming_stops),
             unavailable_reason=(
@@ -311,6 +410,8 @@ class PostgresGtfsCatalog:
             match_method=method,
             projected_shape_dist_traveled=projected_distance,
             projection_distance_m=projection_distance_m,
+            eta_evidence=eta_evidence,
+            eta_unavailable_reason=eta_unavailable_reason,
             upcoming_stops=upcoming_stops,
             **base,
         )

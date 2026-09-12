@@ -117,6 +117,33 @@ class JourneyUnavailableReason(StrEnum):
     NO_UPCOMING_STOPS = "no_upcoming_stops"
 
 
+class EtaMethod(StrEnum):
+    VEHICLE_RECENT_SPEED = "vehicle_recent_speed"
+    ROUTE_SHAPE_RECENT_SPEED = "route_shape_recent_speed"
+
+
+class EtaConfidence(StrEnum):
+    EXPERIMENTAL = "experimental"
+
+
+class EtaUnavailableReason(StrEnum):
+    STALE_POSITION = "stale_position"
+    INSUFFICIENT_SPEED_EVIDENCE = "insufficient_speed_evidence"
+    DISTANCE_OUT_OF_RANGE = "distance_out_of_range"
+
+
+class EtaEvidence(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    method: EtaMethod
+    confidence: EtaConfidence = EtaConfidence.EXPERIMENTAL
+    sample_count: int = Field(gt=0)
+    window_seconds: int = Field(gt=0)
+    speed_p25_mps: float = Field(gt=0)
+    speed_median_mps: float = Field(gt=0)
+    speed_p75_mps: float = Field(gt=0)
+
+
 class UpcomingGtfsStop(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -127,6 +154,11 @@ class UpcomingGtfsStop(BaseModel):
     stop_sequence: int = Field(ge=0)
     shape_dist_traveled: float = Field(ge=0)
     shape_distance_ahead: float = Field(ge=0)
+    estimated_arrival_at: datetime | None = None
+    eta_seconds: int | None = Field(default=None, ge=0)
+    eta_lower_seconds: int | None = Field(default=None, ge=0)
+    eta_upper_seconds: int | None = Field(default=None, ge=0)
+    eta_unavailable_reason: EtaUnavailableReason | None = None
 
 
 class VehicleJourneyMatch(BaseModel):
@@ -142,6 +174,10 @@ class VehicleJourneyMatch(BaseModel):
     shape_id: str | None = None
     match_method: JourneyMatchMethod | None = None
     observed_at: datetime
+    evaluated_at: datetime | None = None
+    position_age_seconds: float | None = Field(default=None, ge=0)
     projected_shape_dist_traveled: float | None = Field(default=None, ge=0)
     projection_distance_m: float | None = Field(default=None, ge=0)
+    eta_evidence: EtaEvidence | None = None
+    eta_unavailable_reason: EtaUnavailableReason | None = None
     upcoming_stops: tuple[UpcomingGtfsStop, ...] = ()
