@@ -49,7 +49,7 @@ degrade com transparência quando o GPS estiver antigo.
   projeção validada sobre o shape;
 - [x] casar veículo, viagem, shape e próximas paradas;
 - [x] calcular ETA geométrico/operacional com limites explícitos;
-- [ ] usar histórico agregado por trecho/faixa horária quando disponível;
+- [x] usar histórico agregado por trecho/faixa horária quando disponível;
 - [x] retornar idade da observação e motivo de indisponibilidade;
 - [x] medir MAE e erro P50/P90 em replay histórico;
 - [x] impedir que um ETA sem evidência seja apresentado como confiável.
