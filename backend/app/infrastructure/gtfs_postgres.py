@@ -224,8 +224,9 @@ class PostgresGtfsCatalog:
         position: VehiclePosition,
         limit: int,
         max_projection_distance_m: float,
+        evaluated_at: datetime | None = None,
     ) -> VehicleJourneyMatch:
-        evaluated_at = datetime.now(UTC)
+        evaluated_at = evaluated_at or datetime.now(UTC)
         observed_at = position.observed_at
         if observed_at.tzinfo is None:
             observed_at = observed_at.replace(tzinfo=UTC)

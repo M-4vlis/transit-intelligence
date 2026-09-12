@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Protocol
 
 from app.modules.mobility.gtfs.models import GtfsRoutePage, GtfsStopPage, VehicleJourneyMatch
@@ -31,4 +32,5 @@ class GtfsCatalog(Protocol):
         position: VehiclePosition,
         limit: int,
         max_projection_distance_m: float,
+        evaluated_at: datetime | None = None,
     ) -> VehicleJourneyMatch: ...

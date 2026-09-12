@@ -7,6 +7,7 @@ from app.modules.mobility.gtfs.models import (
     EtaUnavailableReason,
     UpcomingGtfsStop,
 )
+from scripts.evaluate_eta_replay import _percentile
 
 
 def _stop(distance_ahead: float) -> UpcomingGtfsStop:
@@ -68,3 +69,9 @@ def test_geometric_eta_rejects_unbounded_distance() -> None:
     assert result.eta_seconds is None
     assert result.estimated_arrival_at is None
     assert result.eta_unavailable_reason is EtaUnavailableReason.DISTANCE_OUT_OF_RANGE
+
+
+def test_replay_percentile_uses_linear_interpolation() -> None:
+    assert _percentile([], 0.9) is None
+    assert _percentile([10, 20, 30, 40], 0.5) == 25
+    assert _percentile([10, 20, 30, 40], 0.9) == 37

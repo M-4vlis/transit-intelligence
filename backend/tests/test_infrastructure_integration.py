@@ -209,6 +209,73 @@ async def test_vehicle_is_projected_to_shape_and_upcoming_stops(tmp_path: Path) 
 
 
 @pytest.mark.asyncio
+async def test_eta_replay_compares_prediction_with_future_gps(tmp_path: Path) -> None:
+    from argparse import Namespace
+
+    from app.modules.mobility.gtfs.importer import PostgresGtfsImporter
+    from app.modules.mobility.gtfs.validator import validate_gtfs_snapshot
+    from scripts.evaluate_eta_replay import _run
+
+    database_url, _ = _require_integration_env()
+    pool = await create_postgres_pool(database_url, command_timeout=None)
+    try:
+        await _reset_and_migrate(pool)
+        path = tmp_path / "gtfs.zip"
+        _write_minimal_gtfs(path)
+        manifest = validate_gtfs_snapshot(
+            path,
+            source_url="https://dados.mobilidade.rio/gtfs/schedule",
+        )
+        await PostgresGtfsImporter(pool).import_snapshot(path, manifest)
+        anchor = datetime.now(UTC).replace(microsecond=0) - timedelta(minutes=20)
+        positions = tuple(
+            VehiclePosition(
+                agency_id="br-rj-rio-smtr-sppo",
+                vehicle_id="D12345",
+                route_id="483",
+                trip_id="T1",
+                shape_id="SH1",
+                latitude=-22.9,
+                longitude=longitude,
+                speed_mps=speed,
+                observed_at=observed_at,
+                received_at=observed_at,
+                source="integration-test",
+            )
+            for observed_at, longitude, speed in (
+                (anchor - timedelta(seconds=120), -43.2, 4.0),
+                (anchor - timedelta(seconds=60), -43.19995, 5.0),
+                (anchor, -43.1999, 6.0),
+                (anchor + timedelta(seconds=120), -43.199, 3.0),
+            )
+        )
+        await PostgresPositionRepository(pool).save_many(positions)
+
+        report = await _run(
+            Namespace(
+                anchor_age_minutes=20,
+                anchor_window_seconds=60,
+                outcome_horizon_minutes=10,
+                stop_radius_m=30.0,
+                max_samples=10,
+                min_outcomes=1,
+            ),
+            database_url=database_url,
+        )
+
+        assert report["status"] == "sufficient_data"
+        assert report["anchor_count"] == 1
+        assert report["outcome_count"] == 1
+        assert report["mae_seconds"] is not None
+        assert report["mae_seconds"] > 60
+        assert report["error_p50_seconds"] == report["mae_seconds"]
+        assert report["methods"] == {"vehicle_recent_speed": 1}
+        assert report["match_methods"] == {"exact_trip": 1}
+    finally:
+        await pool.close()
+
+
+@pytest.mark.asyncio
 async def test_valkey_cache_and_distributed_lease_contract() -> None:
     _, cache_url = _require_integration_env()
     client = await create_valkey_client(cache_url)
