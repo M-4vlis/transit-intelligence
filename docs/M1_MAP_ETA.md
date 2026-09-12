@@ -51,7 +51,7 @@ degrade com transparência quando o GPS estiver antigo.
 - [x] calcular ETA geométrico/operacional com limites explícitos;
 - [ ] usar histórico agregado por trecho/faixa horária quando disponível;
 - [x] retornar idade da observação e motivo de indisponibilidade;
-- [ ] medir MAE e erro P50/P90 em replay histórico;
+- [x] medir MAE e erro P50/P90 em replay histórico;
 - [x] impedir que um ETA sem evidência seja apresentado como confiável.
 
 ### M1.4 — Refinamento do mapa após o ETA V0
