@@ -1,6 +1,12 @@
 import { getApiBaseUrl } from '@/config/runtime';
 
-import type { GtfsRoute, NearbyStop, Page, VehiclePosition } from './types';
+import type {
+  GtfsRoute,
+  NearbyStop,
+  Page,
+  VehicleJourneyMatch,
+  VehiclePosition,
+} from './types';
 
 const REQUEST_TIMEOUT_MS = 10_000;
 
@@ -60,5 +66,12 @@ export const transitApi = {
 
   vehiclesByRoute(routeId: string) {
     return getJson<VehiclePosition[]>(`/v1/routes/${encodeURIComponent(routeId)}/vehicles`, {});
+  },
+
+  upcomingStops(routeId: string, vehicleId: string, limit = 3) {
+    return getJson<VehicleJourneyMatch>(
+      `/v1/routes/${encodeURIComponent(routeId)}/vehicles/${encodeURIComponent(vehicleId)}/upcoming-stops`,
+      { limit },
+    );
   },
 };

@@ -49,6 +49,7 @@ function OsmRasterMapSurface({
   vehicles,
   userLocation,
   onCenterChange,
+  onVehiclePress,
 }: TransitMapProps) {
   const [viewport, setViewport] = useState<ViewportSize>({ width: 0, height: 0 });
   const [tileErrors, setTileErrors] = useState(0);
@@ -195,13 +196,10 @@ function OsmRasterMapSurface({
               accessibilityRole="button"
               hitSlop={5}
               key={`vehicle-${vehicle.agency_id}-${vehicle.vehicle_id}`}
-              onPress={() =>
-                setSelected({
-                  key: `vehicle-${vehicle.agency_id}-${vehicle.vehicle_id}`,
-                  title: `Linha ${vehicle.route_id}`,
-                  detail: `Ônibus ${vehicle.vehicle_id} · ${quality.label} · ${quality.detail}`,
-                })
-              }
+              onPress={() => {
+                setSelected(null);
+                onVehiclePress?.(vehicle);
+              }}
               style={[styles.vehicleMarker, { left, top, backgroundColor: markerColor }]}
             />
           );

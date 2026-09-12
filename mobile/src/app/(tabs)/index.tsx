@@ -4,6 +4,8 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 
 import { Screen } from '@/components/screen';
 import { colors, spacing } from '@/constants/theme';
+import { presentEta, presentJourneyUnavailable } from '@/features/eta/presentation';
+import { useVehicleEta } from '@/features/eta/use-vehicle-eta';
 import { MapSurface } from '@/features/map/map-surface';
 import type { MapCenter } from '@/features/map/types';
 import { presentRouteLabel, uniqueRouteIds } from '@/features/map/route-filter';
@@ -26,6 +28,7 @@ export default function MapScreen() {
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
+  const eta = useVehicleEta();
   const { stops, vehicles, loading, error, refresh } = useNearbyTransit(loadedCenter);
   const areaMoved = centersDiffer(center, loadedCenter);
   const routeIds = useMemo(
@@ -143,11 +146,59 @@ export default function MapScreen() {
           userLocation={userLocation}
           vehicles={displayedVehicles}
           onCenterChange={setCenter}
+          onVehiclePress={(vehicle) => void eta.load(vehicle)}
         />
         {loading ? (
           <View style={styles.loadingOverlay}>
             <ActivityIndicator color={colors.primary} />
             <Text style={styles.loadingText}>Atualizando...</Text>
+          </View>
+        ) : null}
+        {eta.vehicle ? (
+          <View style={styles.etaCard}>
+            <View style={styles.etaHeader}>
+              <View style={styles.etaHeading}>
+                <Text style={styles.etaTitle}>
+                  Linha {presentRouteLabel(eta.vehicle.route_id)} · ônibus {eta.vehicle.vehicle_id}
+                </Text>
+                <Text style={styles.etaCaption}>Próximas paradas · ETA experimental</Text>
+              </View>
+              <Pressable
+                accessibilityLabel="Fechar previsão"
+                accessibilityRole="button"
+                hitSlop={8}
+                onPress={eta.clear}>
+                <Text style={styles.etaClose}>×</Text>
+              </Pressable>
+            </View>
+            {eta.loading ? (
+              <View style={styles.etaLoading}>
+                <ActivityIndicator color={colors.primary} size="small" />
+                <Text style={styles.etaCaption}>Calculando com o GPS atual...</Text>
+              </View>
+            ) : null}
+            {eta.error ? <Text style={styles.etaError}>{eta.error}</Text> : null}
+            {eta.journey && !eta.journey.available ? (
+              <Text style={styles.etaError}>
+                ETA indisponível: {presentJourneyUnavailable(eta.journey.unavailable_reason)}.
+              </Text>
+            ) : null}
+            {eta.journey?.available
+              ? eta.journey.upcoming_stops.slice(0, 3).map((stop) => {
+                  const prediction = presentEta(stop);
+                  return (
+                    <View key={stop.stop_id} style={styles.etaStopRow}>
+                      <Text numberOfLines={1} style={styles.etaStopName}>
+                        {stop.stop_name}
+                      </Text>
+                      <View style={styles.etaValueBlock}>
+                        <Text style={styles.etaValue}>{prediction.eta}</Text>
+                        <Text style={styles.etaDetail}>{prediction.detail}</Text>
+                      </View>
+                    </View>
+                  );
+                })
+              : null}
           </View>
         ) : null}
       </View>
@@ -222,6 +273,38 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   loadingText: { color: colors.text, fontSize: 13 },
+  etaCard: {
+    position: 'absolute',
+    left: 8,
+    right: 8,
+    bottom: 8,
+    padding: 11,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: 'rgba(255,255,255,0.98)',
+    zIndex: 20,
+  },
+  etaHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
+  etaHeading: { flex: 1 },
+  etaTitle: { color: colors.text, fontSize: 13, fontWeight: '800' },
+  etaCaption: { color: colors.muted, fontSize: 10, marginTop: 1 },
+  etaClose: { color: colors.muted, fontSize: 24, lineHeight: 24 },
+  etaLoading: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: 8 },
+  etaError: { color: colors.stale, fontSize: 11, lineHeight: 15, marginTop: 7 },
+  etaStopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: 6,
+    marginTop: 6,
+  },
+  etaStopName: { flex: 1, color: colors.text, fontSize: 11, fontWeight: '700' },
+  etaValueBlock: { alignItems: 'flex-end', maxWidth: '48%' },
+  etaValue: { color: colors.primary, fontSize: 12, fontWeight: '800' },
+  etaDetail: { color: colors.muted, fontSize: 9, textAlign: 'right' },
   notice: { color: colors.primary, fontSize: 12, textAlign: 'center' },
   error: { color: colors.stale, fontSize: 13, lineHeight: 18 },
   actionRow: { flexDirection: 'row', gap: spacing.sm },

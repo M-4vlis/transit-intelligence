@@ -11,6 +11,7 @@ export interface TransitMapProps {
   vehicles: VehiclePosition[];
   userLocation?: MapCenter | null;
   onCenterChange?: (center: MapCenter) => void;
+  onVehiclePress?: (vehicle: VehiclePosition) => void;
 }
 
 export interface MapProviderAdapter {
