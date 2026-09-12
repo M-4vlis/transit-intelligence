@@ -97,6 +97,7 @@ class RehydrateFakeConnection(FakeConnection):
         return "OK"
 
     async def fetchrow(self, query: str, *args: Any) -> dict[str, Any] | None:
+        self.queries.append(" ".join(query.split()))
         if "SELECT status FROM transit.gtfs_snapshots" in query:
             return {"status": self.status}
         if "FROM gtfs_stop_distance_stage" in query:
@@ -200,6 +201,7 @@ async def test_stop_distances_are_rehydrated_only_for_exact_active_snapshot(
         123.4,
     )
     assert connection.copied["__schemas__"] == [("gtfs_stop_distance_stage", None)]
+    assert any("count(s.shape_dist_traveled)" in query for query in connection.queries)
 
 
 @pytest.mark.asyncio

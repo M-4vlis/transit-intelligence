@@ -520,7 +520,7 @@ class PostgresGtfsImporter:
                 """
                 SELECT
                     count(*)::bigint AS staged_rows,
-                    count(shape_dist_traveled)::bigint AS source_non_null_rows,
+                    count(s.shape_dist_traveled)::bigint AS source_non_null_rows,
                     count(t.snapshot_id)::bigint AS matched_rows,
                     (
                         SELECT count(*)
