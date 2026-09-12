@@ -13,6 +13,7 @@ import { getApiBaseUrl } from '@/config/runtime';
 import { colors } from '@/constants/theme';
 import { presentGpsQuality } from '@/features/quality/gps-quality';
 
+import { selectDecluttered } from './declutter';
 import type { MapCenter, MapProviderAdapter, TransitMapProps } from './types';
 import {
   centerAfterPan,
@@ -36,6 +37,12 @@ interface RasterTile {
   uri: string;
 }
 
+interface SelectedMarker {
+  key: string;
+  title: string;
+  detail: string;
+}
+
 function OsmRasterMapSurface({
   center,
   stops,
@@ -47,6 +54,7 @@ function OsmRasterMapSurface({
   const [tileErrors, setTileErrors] = useState(0);
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
   const [drag, setDrag] = useState({ x: 0, y: 0 });
+  const [selected, setSelected] = useState<SelectedMarker | null>(null);
   const tileBaseUrl = getApiBaseUrl();
 
   const scene = useMemo(() => {
@@ -87,6 +95,34 @@ function OsmRasterMapSurface({
     return { position, tiles };
   }, [center, tileBaseUrl, viewport.height, viewport.width, zoom]);
 
+  const visibleStops = useMemo(
+    () =>
+      scene
+        ? selectDecluttered(
+            stops,
+            (stop) => scene.position({ latitude: stop.latitude, longitude: stop.longitude }),
+            viewport,
+            34,
+            35,
+          )
+        : [],
+    [scene, stops, viewport],
+  );
+  const visibleVehicles = useMemo(
+    () =>
+      scene
+        ? selectDecluttered(
+            vehicles,
+            (vehicle) =>
+              scene.position({ latitude: vehicle.latitude, longitude: vehicle.longitude }),
+            viewport,
+            26,
+            60,
+          )
+        : [],
+    [scene, vehicles, viewport],
+  );
+
   const panResponder = useMemo(
     () =>
       PanResponder.create({
@@ -95,6 +131,7 @@ function OsmRasterMapSurface({
         onPanResponderMove: (_, gesture) => setDrag({ x: gesture.dx, y: gesture.dy }),
         onPanResponderRelease: (_, gesture) => {
           setDrag({ x: 0, y: 0 });
+          setSelected(null);
           onCenterChange?.(centerAfterPan(center, gesture.dx, gesture.dy, zoom));
         },
         onPanResponderTerminate: () => setDrag({ x: 0, y: 0 }),
@@ -116,7 +153,7 @@ function OsmRasterMapSurface({
       style={styles.map}
       {...panResponder.panHandlers}>
       <View
-        pointerEvents="none"
+        pointerEvents="box-none"
         style={[styles.scene, { transform: [{ translateX: drag.x }, { translateY: drag.y }] }]}>
         {scene?.tiles.map((tile) => (
           <Image
@@ -127,40 +164,61 @@ function OsmRasterMapSurface({
           />
         ))}
 
-        {scene
-          ? stops.map((stop) => {
-              const position = scene.position({ latitude: stop.latitude, longitude: stop.longitude });
-              return <View key={`stop-${stop.stop_id}`} style={[styles.stopMarker, position]} />;
-            })
-          : null}
+        {visibleStops.map(({ item: stop, left, top }) => (
+          <Pressable
+            accessibilityLabel={`Ponto ${stop.stop_name}, ${Math.round(stop.distance_m)} metros`}
+            accessibilityRole="button"
+            hitSlop={6}
+            key={`stop-${stop.stop_id}`}
+            onPress={() =>
+              setSelected({
+                key: `stop-${stop.stop_id}`,
+                title: stop.stop_name,
+                detail: `Ponto de ônibus · ${Math.round(stop.distance_m)} m do centro pesquisado`,
+              })
+            }
+            style={[styles.stopMarker, { left, top }]}
+          />
+        ))}
 
-        {scene
-          ? vehicles.map((vehicle) => {
-              const quality = presentGpsQuality(vehicle);
-              const markerColor =
-                quality.status === 'good'
-                  ? colors.good
-                  : quality.status === 'degraded'
-                    ? colors.degraded
-                    : colors.stale;
-              const position = scene.position({
-                latitude: vehicle.latitude,
-                longitude: vehicle.longitude,
-              });
-              return (
-                <View
-                  key={`vehicle-${vehicle.agency_id}-${vehicle.vehicle_id}`}
-                  style={[styles.vehicleMarker, position, { backgroundColor: markerColor }]}
-                />
-              );
-            })
-          : null}
+        {visibleVehicles.map(({ item: vehicle, left, top }) => {
+          const quality = presentGpsQuality(vehicle);
+          const markerColor =
+            quality.status === 'good'
+              ? colors.good
+              : quality.status === 'degraded'
+                ? colors.degraded
+                : colors.stale;
+          return (
+            <Pressable
+              accessibilityLabel={`Linha ${vehicle.route_id}, veículo ${vehicle.vehicle_id}, ${quality.label}`}
+              accessibilityRole="button"
+              hitSlop={5}
+              key={`vehicle-${vehicle.agency_id}-${vehicle.vehicle_id}`}
+              onPress={() =>
+                setSelected({
+                  key: `vehicle-${vehicle.agency_id}-${vehicle.vehicle_id}`,
+                  title: `Linha ${vehicle.route_id}`,
+                  detail: `Ônibus ${vehicle.vehicle_id} · ${quality.label} · ${quality.detail}`,
+                })
+              }
+              style={[styles.vehicleMarker, { left, top, backgroundColor: markerColor }]}
+            />
+          );
+        })}
 
         {scene && userLocation ? (
           <View style={[styles.userMarkerHalo, scene.position(userLocation)]}>
             <View style={styles.userMarker} />
           </View>
         ) : null}
+      </View>
+
+      <View pointerEvents="none" style={styles.markerSummary}>
+        <Text style={styles.markerSummaryText}>
+          Exibindo {visibleVehicles.length}/{vehicles.length} ônibus · {visibleStops.length}/
+          {stops.length} pontos
+        </Text>
       </View>
 
       <View style={styles.zoomControls}>
@@ -187,6 +245,19 @@ function OsmRasterMapSurface({
           <Text style={styles.zoomText}>−</Text>
         </Pressable>
       </View>
+
+      {selected ? (
+        <Pressable
+          accessibilityHint="Toque para fechar"
+          accessibilityLabel={`${selected.title}. ${selected.detail}`}
+          accessibilityRole="button"
+          key={selected.key}
+          onPress={() => setSelected(null)}
+          style={styles.markerCard}>
+          <Text style={styles.markerCardTitle}>{selected.title}</Text>
+          <Text style={styles.markerCardDetail}>{selected.detail}</Text>
+        </Pressable>
+      ) : null}
 
       {tileErrors > 3 ? (
         <View style={styles.tileError}>
@@ -266,6 +337,32 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   zoomText: { color: colors.text, fontSize: 24, fontWeight: '700', lineHeight: 27 },
+  markerSummary: {
+    position: 'absolute',
+    left: 10,
+    top: 10,
+    maxWidth: '70%',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    zIndex: 5,
+  },
+  markerSummaryText: { color: colors.text, fontSize: 10, fontWeight: '700' },
+  markerCard: {
+    position: 'absolute',
+    left: 10,
+    right: 10,
+    bottom: 22,
+    padding: 10,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.97)',
+    borderWidth: 1,
+    borderColor: colors.border,
+    zIndex: 7,
+  },
+  markerCardTitle: { color: colors.text, fontSize: 13, fontWeight: '800' },
+  markerCardDetail: { color: colors.muted, fontSize: 11, marginTop: 2 },
   attribution: {
     position: 'absolute',
     right: 4,
