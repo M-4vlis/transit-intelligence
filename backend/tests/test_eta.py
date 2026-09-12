@@ -8,6 +8,7 @@ from app.modules.mobility.gtfs.models import (
     UpcomingGtfsStop,
 )
 from scripts.evaluate_eta_replay import _percentile
+from scripts.refresh_eta_segment_profiles import _aligned_window_end
 
 
 def _stop(distance_ahead: float) -> UpcomingGtfsStop:
@@ -75,3 +76,9 @@ def test_replay_percentile_uses_linear_interpolation() -> None:
     assert _percentile([], 0.9) is None
     assert _percentile([10, 20, 30, 40], 0.5) == 25
     assert _percentile([10, 20, 30, 40], 0.9) == 37
+
+
+def test_profile_refresh_uses_only_complete_delayed_windows() -> None:
+    now = datetime(2026, 9, 12, 12, 23, 45, tzinfo=UTC)
+
+    assert _aligned_window_end(now, 5) == datetime(2026, 9, 12, 12, 15, tzinfo=UTC)

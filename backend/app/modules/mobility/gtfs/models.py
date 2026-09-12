@@ -119,6 +119,7 @@ class JourneyUnavailableReason(StrEnum):
 
 class EtaMethod(StrEnum):
     VEHICLE_RECENT_SPEED = "vehicle_recent_speed"
+    HISTORICAL_SEGMENT_TIME_BAND = "historical_segment_time_band"
     ROUTE_SHAPE_RECENT_SPEED = "route_shape_recent_speed"
 
 

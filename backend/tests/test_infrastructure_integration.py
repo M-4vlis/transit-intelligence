@@ -209,6 +209,128 @@ async def test_vehicle_is_projected_to_shape_and_upcoming_stops(tmp_path: Path) 
 
 
 @pytest.mark.asyncio
+async def test_eta_uses_historical_segment_time_band_as_bounded_fallback(
+    tmp_path: Path,
+) -> None:
+    from app.infrastructure.gtfs_postgres import PostgresGtfsCatalog
+    from app.modules.mobility.gtfs.importer import PostgresGtfsImporter
+    from app.modules.mobility.gtfs.models import EtaMethod
+    from app.modules.mobility.gtfs.validator import validate_gtfs_snapshot
+
+    database_url, _ = _require_integration_env()
+    pool = await create_postgres_pool(database_url, command_timeout=None)
+    try:
+        await _reset_and_migrate(pool)
+        path = tmp_path / "gtfs.zip"
+        _write_minimal_gtfs(path)
+        manifest = validate_gtfs_snapshot(
+            path,
+            source_url="https://dados.mobilidade.rio/gtfs/schedule",
+        )
+        await PostgresGtfsImporter(pool).import_snapshot(path, manifest)
+        observed_at = datetime.now(UTC).replace(microsecond=0)
+        positions = tuple(
+            VehiclePosition(
+                agency_id="br-rj-rio-smtr-sppo",
+                vehicle_id="D12345",
+                route_id="483",
+                trip_id="T1",
+                shape_id="SH1",
+                latitude=-22.9,
+                longitude=-43.1994,
+                speed_mps=speed,
+                observed_at=observed_at - timedelta(seconds=seconds_ago),
+                received_at=observed_at - timedelta(seconds=seconds_ago),
+                source="integration-test",
+            )
+            for seconds_ago, speed in ((60, 7.0), (0, 8.0))
+        )
+        await PostgresPositionRepository(pool).save_many(positions)
+        async with pool.acquire() as conn:
+            await conn.executemany(
+                """
+                INSERT INTO transit.eta_segment_speed_profiles (
+                    window_start, window_end, route_id, latitude_cell,
+                    longitude_cell, local_time_band, sample_count,
+                    speed_p25_mps, speed_median_mps, speed_p75_mps
+                )
+                VALUES (
+                    $1, $1::timestamptz + interval '15 minutes', '483',
+                    floor((-22.9 + 90.0) / 0.0025)::integer,
+                    floor((-43.1994 + 180.0) / 0.0025)::integer,
+                    floor(extract(epoch FROM (
+                        $1::timestamptz AT TIME ZONE 'America/Sao_Paulo'
+                    )::time) / 900)::smallint,
+                    30, 2.0, 3.0, 4.0
+                )
+                """,
+                [
+                    (observed_at - timedelta(days=1, minutes=15),),
+                    (observed_at - timedelta(days=2, minutes=15),),
+                ],
+            )
+
+        result = await PostgresGtfsCatalog(pool).match_vehicle_to_upcoming_stops(
+            position=positions[-1],
+            limit=2,
+            max_projection_distance_m=250,
+        )
+
+        assert result.eta_evidence is not None
+        assert result.eta_evidence.method is EtaMethod.HISTORICAL_SEGMENT_TIME_BAND
+        assert result.eta_evidence.sample_count == 60
+        assert result.eta_evidence.speed_median_mps == pytest.approx(3)
+    finally:
+        await pool.close()
+
+
+@pytest.mark.asyncio
+async def test_eta_segment_profile_refresh_aggregates_completed_window() -> None:
+    from scripts.refresh_eta_segment_profiles import refresh_profiles
+
+    database_url, _ = _require_integration_env()
+    pool = await create_postgres_pool(database_url, command_timeout=None)
+    try:
+        await _reset_and_migrate(pool)
+        now = datetime.now(UTC).replace(microsecond=0)
+        positions = tuple(
+            VehiclePosition(
+                agency_id="br-rj-rio-smtr-sppo",
+                vehicle_id=f"D{index}",
+                route_id="483",
+                latitude=-22.9,
+                longitude=-43.2,
+                speed_mps=speed,
+                observed_at=now - timedelta(minutes=20, seconds=index),
+                received_at=now - timedelta(minutes=20, seconds=index),
+                source="integration-test",
+            )
+            for index, speed in enumerate((2.0, 4.0, 6.0))
+        )
+        await PostgresPositionRepository(pool).save_many(positions)
+        async with pool.acquire() as conn, conn.transaction():
+            profile_count = await refresh_profiles(
+                conn,
+                start=now - timedelta(hours=1),
+                end=now - timedelta(minutes=5),
+            )
+            profile = await conn.fetchrow(
+                """
+                SELECT sample_count, speed_p25_mps, speed_median_mps, speed_p75_mps
+                FROM transit.eta_segment_speed_profiles
+                """
+            )
+
+        assert profile_count == 1
+        assert profile["sample_count"] == 3
+        assert profile["speed_p25_mps"] == pytest.approx(3)
+        assert profile["speed_median_mps"] == pytest.approx(4)
+        assert profile["speed_p75_mps"] == pytest.approx(5)
+    finally:
+        await pool.close()
+
+
+@pytest.mark.asyncio
 async def test_eta_replay_compares_prediction_with_future_gps(tmp_path: Path) -> None:
     from argparse import Namespace
 

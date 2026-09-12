@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import json
 from collections import Counter
+from datetime import UTC, datetime, timedelta
 from math import floor
 from typing import Any
 
@@ -21,6 +22,12 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--stop-radius-m", type=float, default=75)
     parser.add_argument("--max-samples", type=int, default=50)
     parser.add_argument("--min-outcomes", type=int, default=20)
+    parser.add_argument(
+        "--anchor-at",
+        type=datetime.fromisoformat,
+        help="Fixed ISO-8601 anchor end for reproducible comparisons.",
+    )
+    parser.add_argument("--without-historical-profiles", action="store_true")
     args = parser.parse_args()
     if args.anchor_age_minutes < args.outcome_horizon_minutes:
         parser.error("anchor age must cover the complete outcome horizon")
@@ -49,11 +56,13 @@ def _percentile(values: list[float], quantile: float) -> float | None:
 
 
 async def _anchors(conn: Any, args: argparse.Namespace) -> list[VehiclePosition]:
+    anchor_end = getattr(args, "anchor_at", None)
+    if anchor_end is None:
+        anchor_end = datetime.now(UTC) - timedelta(minutes=args.anchor_age_minutes)
+    elif anchor_end.tzinfo is None:
+        anchor_end = anchor_end.replace(tzinfo=UTC)
     rows = await conn.fetch(
         """
-        WITH bounds AS (
-            SELECT now() - ($1::double precision * interval '1 minute') AS anchor_end
-        )
         SELECT DISTINCT ON (position.agency_id,position.vehicle_id)
             position.agency_id, position.vehicle_id, position.route_id,
             position.trip_id, position.shape_id, position.latitude, position.longitude,
@@ -61,16 +70,15 @@ async def _anchors(conn: Any, args: argparse.Namespace) -> list[VehiclePosition]
             position.received_at, position.source,
             position.quality_status, position.quality_score
         FROM transit.vehicle_positions position
-        CROSS JOIN bounds
-        WHERE position.observed_at <= bounds.anchor_end
-          AND position.observed_at >= bounds.anchor_end
+        WHERE position.observed_at <= $1::timestamptz
+          AND position.observed_at >= $1::timestamptz
               - ($2::double precision * interval '1 second')
           AND position.shape_id IS NOT NULL
           AND position.quality_status <> 'invalid'
         ORDER BY position.agency_id, position.vehicle_id, position.observed_at DESC
         LIMIT $3
         """,
-        float(args.anchor_age_minutes),
+        anchor_end,
         float(args.anchor_window_seconds),
         args.max_samples,
     )
@@ -131,7 +139,12 @@ async def _run(
     try:
         async with pool.acquire() as conn, conn.transaction(readonly=True):
             anchors = await _anchors(conn, args)
-            catalog = PostgresGtfsCatalog(pool)
+            catalog = PostgresGtfsCatalog(
+                pool,
+                historical_profiles_enabled=not getattr(
+                    args, "without_historical_profiles", False
+                ),
+            )
             for position in anchors:
                 match = await catalog.match_vehicle_to_upcoming_stops(
                     position=position,
@@ -207,6 +220,12 @@ async def _run(
             "outcome_horizon_minutes": args.outcome_horizon_minutes,
             "stop_radius_m": args.stop_radius_m,
             "max_samples": args.max_samples,
+            "anchor_at": (
+                args.anchor_at.isoformat() if getattr(args, "anchor_at", None) else None
+            ),
+            "historical_profiles_enabled": not getattr(
+                args, "without_historical_profiles", False
+            ),
         },
     }
 

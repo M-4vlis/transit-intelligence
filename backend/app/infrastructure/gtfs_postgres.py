@@ -25,14 +25,96 @@ _VEHICLE_SPEED_WINDOW_SECONDS = 300
 _VEHICLE_MIN_SAMPLES = 3
 _ROUTE_SHAPE_SPEED_WINDOW_SECONDS = 600
 _ROUTE_SHAPE_MIN_SAMPLES = 20
+_HISTORICAL_PROFILE_WINDOW_SECONDS = 7 * 24 * 60 * 60
+_HISTORICAL_PROFILE_MIN_SAMPLES = 50
+_HISTORICAL_PROFILE_MIN_WINDOWS = 2
+_HISTORICAL_PROFILE_GRID_DEGREES = 0.0025
 
 
 class PostgresGtfsCatalog:
-    def __init__(self, pool: Any) -> None:
+    def __init__(self, pool: Any, *, historical_profiles_enabled: bool = True) -> None:
         self.pool = pool
+        self.historical_profiles_enabled = historical_profiles_enabled
 
     @staticmethod
-    async def _speed_evidence(conn: Any, position: VehiclePosition) -> EtaEvidence | None:
+    async def _historical_speed_evidence(
+        conn: Any, position: VehiclePosition
+    ) -> EtaEvidence | None:
+        row = await conn.fetchrow(
+            """
+            WITH matching_profiles AS (
+                SELECT
+                    sample_count,
+                    speed_p25_mps,
+                    speed_median_mps,
+                    speed_p75_mps
+                FROM transit.eta_segment_speed_profiles
+                WHERE route_id = $1
+                  AND latitude_cell BETWEEN
+                      floor(($2::double precision + 90.0) / $5)::integer - 1
+                      AND floor(($2::double precision + 90.0) / $5)::integer + 1
+                  AND longitude_cell BETWEEN
+                      floor(($3::double precision + 180.0) / $5)::integer - 1
+                      AND floor(($3::double precision + 180.0) / $5)::integer + 1
+                  AND window_end <= $4::timestamptz
+                  AND window_end >= $4::timestamptz
+                      - ($6::double precision * interval '1 second')
+                  AND least(
+                      abs(
+                          local_time_band - floor(
+                              extract(epoch FROM (
+                                  $4::timestamptz
+                                  AT TIME ZONE 'America/Sao_Paulo'
+                              )::time) / 900
+                          )::integer
+                      ),
+                      96 - abs(
+                          local_time_band - floor(
+                              extract(epoch FROM (
+                                  $4::timestamptz
+                                  AT TIME ZONE 'America/Sao_Paulo'
+                              )::time) / 900
+                          )::integer
+                      )
+                  ) <= 1
+            )
+            SELECT
+                count(*)::integer AS profile_count,
+                coalesce(sum(sample_count),0)::bigint AS sample_count,
+                sum(speed_p25_mps * sample_count) / nullif(sum(sample_count),0)
+                    AS speed_p25_mps,
+                sum(speed_median_mps * sample_count) / nullif(sum(sample_count),0)
+                    AS speed_median_mps,
+                sum(speed_p75_mps * sample_count) / nullif(sum(sample_count),0)
+                    AS speed_p75_mps
+            FROM matching_profiles
+            """,
+            position.route_id,
+            position.latitude,
+            position.longitude,
+            position.observed_at,
+            _HISTORICAL_PROFILE_GRID_DEGREES,
+            float(_HISTORICAL_PROFILE_WINDOW_SECONDS),
+        )
+        profile_count = int(row["profile_count"] or 0)
+        sample_count = int(row["sample_count"] or 0)
+        if (
+            profile_count < _HISTORICAL_PROFILE_MIN_WINDOWS
+            or sample_count < _HISTORICAL_PROFILE_MIN_SAMPLES
+        ):
+            return None
+        return EtaEvidence(
+            method=EtaMethod.HISTORICAL_SEGMENT_TIME_BAND,
+            sample_count=sample_count,
+            window_seconds=_HISTORICAL_PROFILE_WINDOW_SECONDS,
+            speed_p25_mps=float(row["speed_p25_mps"]),
+            speed_median_mps=float(row["speed_median_mps"]),
+            speed_p75_mps=float(row["speed_p75_mps"]),
+        )
+
+    async def _speed_evidence(
+        self, conn: Any, position: VehiclePosition
+    ) -> EtaEvidence | None:
         candidates = (
             (
                 EtaMethod.VEHICLE_RECENT_SPEED,
@@ -88,6 +170,15 @@ class PostgresGtfsCatalog:
                     speed_median_mps=float(percentiles[1]),
                     speed_p75_mps=float(percentiles[2]),
                 )
+            if (
+                method is EtaMethod.VEHICLE_RECENT_SPEED
+                and self.historical_profiles_enabled
+            ):
+                historical = await PostgresGtfsCatalog._historical_speed_evidence(
+                    conn, position
+                )
+                if historical is not None:
+                    return historical
         return None
 
     async def search_routes(

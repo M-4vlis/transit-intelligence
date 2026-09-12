@@ -523,6 +523,25 @@ services:
     cap_drop:
       - ALL
 
+  eta-profile-refresh:
+    profiles: ["maintenance"]
+    build:
+      context: ../backend
+    entrypoint: ["python", "scripts/refresh_eta_segment_profiles.py"]
+    environment:
+      <<: *app-environment
+    networks:
+      - data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
   stack-smoke:
     profiles: ["operations"]
     build:
