@@ -52,7 +52,7 @@ async def _anchors(conn: Any, args: argparse.Namespace) -> list[VehiclePosition]
     rows = await conn.fetch(
         """
         WITH bounds AS (
-            SELECT now() - make_interval(mins => $1::double precision) AS anchor_end
+            SELECT now() - ($1::double precision * interval '1 minute') AS anchor_end
         )
         SELECT DISTINCT ON (position.agency_id,position.vehicle_id)
             position.agency_id, position.vehicle_id, position.route_id,
@@ -64,7 +64,7 @@ async def _anchors(conn: Any, args: argparse.Namespace) -> list[VehiclePosition]
         CROSS JOIN bounds
         WHERE position.observed_at <= bounds.anchor_end
           AND position.observed_at >= bounds.anchor_end
-              - make_interval(secs => $2::double precision)
+              - ($2::double precision * interval '1 second')
           AND position.shape_id IS NOT NULL
           AND position.quality_status <> 'invalid'
         ORDER BY position.agency_id, position.vehicle_id, position.observed_at DESC
@@ -95,7 +95,7 @@ async def _actual_arrival(
           AND route_id = $3
           AND observed_at >= $4
           AND observed_at <= $4::timestamptz
-              + make_interval(mins => $5::double precision)
+              + ($5::double precision * interval '1 minute')
           AND quality_status <> 'invalid'
           AND ST_DWithin(
               location,
