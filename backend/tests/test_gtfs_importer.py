@@ -103,8 +103,14 @@ class RehydrateFakeConnection(FakeConnection):
                 "staged_rows": 1,
                 "source_non_null_rows": 1,
                 "matched_rows": self.matched_rows,
+                "target_rows": 1,
             }
         return None
+
+    async def fetchval(self, query: str, *args: Any) -> int:
+        if "lag(shape_dist_traveled)" in query:
+            return 0
+        return 1
 
 
 def _write_gtfs(path: Path) -> None:
@@ -183,6 +189,7 @@ async def test_stop_distances_are_rehydrated_only_for_exact_active_snapshot(
 
     assert result.staged_rows == 1
     assert result.source_non_null_rows == 1
+    assert result.source_null_rows == 0
     assert result.updated_rows == 1
     assert result.target_non_null_rows == 1
     assert connection.copied["gtfs_stop_distance_stage"][0] == (

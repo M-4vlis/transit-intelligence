@@ -519,21 +519,49 @@ class PostgresGtfsImporter:
                 SELECT
                     count(*)::bigint AS staged_rows,
                     count(shape_dist_traveled)::bigint AS source_non_null_rows,
-                    count(t.snapshot_id)::bigint AS matched_rows
+                    count(t.snapshot_id)::bigint AS matched_rows,
+                    (
+                        SELECT count(*)
+                        FROM transit.gtfs_stop_times
+                        WHERE snapshot_id = $1
+                    )::bigint AS target_rows
                 FROM gtfs_stop_distance_stage s
                 LEFT JOIN transit.gtfs_stop_times t
                   ON t.snapshot_id = s.snapshot_id
                  AND t.trip_id = s.trip_id
                  AND t.stop_sequence = s.stop_sequence
-                """
+                """,
+                manifest.snapshot_id,
             )
             if counts is None or int(counts["staged_rows"]) != staged_rows:
                 raise GtfsImportError("GTFS stop-distance staging count mismatch")
             source_non_null_rows = int(counts["source_non_null_rows"])
             if source_non_null_rows == 0:
                 raise GtfsImportError("GTFS snapshot has no stop shape distances")
-            if int(counts["matched_rows"]) != staged_rows:
+            if (
+                int(counts["matched_rows"]) != staged_rows
+                or int(counts["target_rows"]) != staged_rows
+            ):
                 raise GtfsImportError("GTFS source rows do not exactly match the active snapshot")
+            invalid_distance_rows = int(
+                await conn.fetchval(
+                    """
+                    SELECT count(*)
+                    FROM (
+                        SELECT
+                            shape_dist_traveled,
+                            lag(shape_dist_traveled) OVER (
+                                PARTITION BY trip_id ORDER BY stop_sequence
+                            ) AS previous_distance
+                        FROM gtfs_stop_distance_stage
+                    ) distances
+                    WHERE shape_dist_traveled < 0
+                       OR shape_dist_traveled < previous_distance
+                    """
+                )
+            )
+            if invalid_distance_rows:
+                raise GtfsImportError("GTFS stop shape distances are negative or decreasing")
 
             update_status = await conn.execute(
                 """
@@ -565,6 +593,7 @@ class PostgresGtfsImporter:
             snapshot_id=manifest.snapshot_id,
             staged_rows=staged_rows,
             source_non_null_rows=source_non_null_rows,
+            source_null_rows=staged_rows - source_non_null_rows,
             updated_rows=updated_rows,
             target_non_null_rows=target_non_null_rows,
         )

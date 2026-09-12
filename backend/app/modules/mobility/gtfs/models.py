@@ -50,6 +50,7 @@ class GtfsStopDistanceRehydrationResult(BaseModel):
     snapshot_id: str = Field(pattern=r"^[0-9a-f]{64}$")
     staged_rows: int = Field(gt=0)
     source_non_null_rows: int = Field(gt=0)
+    source_null_rows: int = Field(ge=0)
     updated_rows: int = Field(ge=0)
     target_non_null_rows: int = Field(gt=0)
 
