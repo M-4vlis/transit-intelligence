@@ -44,6 +44,16 @@ class GtfsImportResult(BaseModel):
     row_counts: dict[str, int]
 
 
+class GtfsStopDistanceRehydrationResult(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    snapshot_id: str = Field(pattern=r"^[0-9a-f]{64}$")
+    staged_rows: int = Field(gt=0)
+    source_non_null_rows: int = Field(gt=0)
+    updated_rows: int = Field(ge=0)
+    target_non_null_rows: int = Field(gt=0)
+
+
 class GtfsRoute(BaseModel):
     model_config = ConfigDict(frozen=True)
 

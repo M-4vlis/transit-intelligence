@@ -83,6 +83,30 @@ class FakePool:
         return _Context(self.connection)
 
 
+class RehydrateFakeConnection(FakeConnection):
+    def __init__(self, *, status: str = "active", matched_rows: int = 1) -> None:
+        super().__init__()
+        self.status = status
+        self.matched_rows = matched_rows
+
+    async def execute(self, query: str, *args: Any) -> str:
+        await super().execute(query, *args)
+        if "UPDATE transit.gtfs_stop_times target" in query:
+            return "UPDATE 1"
+        return "OK"
+
+    async def fetchrow(self, query: str, *args: Any) -> dict[str, Any] | None:
+        if "SELECT status FROM transit.gtfs_snapshots" in query:
+            return {"status": self.status}
+        if "FROM gtfs_stop_distance_stage" in query:
+            return {
+                "staged_rows": 1,
+                "source_non_null_rows": 1,
+                "matched_rows": self.matched_rows,
+            }
+        return None
+
+
 def _write_gtfs(path: Path) -> None:
     with ZipFile(path, "w", compression=ZIP_DEFLATED) as archive:
         for filename, content in GTFS.items():
@@ -138,3 +162,62 @@ async def test_reimport_is_idempotent_and_can_activate_ready_snapshot(tmp_path: 
     assert connection.copied == {}
     assert any("status = 'superseded'" in query for query in connection.queries)
     assert any("status = 'active'" in query for query in connection.queries)
+
+
+@pytest.mark.asyncio
+async def test_stop_distances_are_rehydrated_only_for_exact_active_snapshot(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "gtfs.zip"
+    _write_gtfs(path)
+    manifest = validate_gtfs_snapshot(
+        path,
+        source_url="https://dados.mobilidade.rio/gtfs/schedule",
+    )
+    connection = RehydrateFakeConnection()
+
+    result = await PostgresGtfsImporter(FakePool(connection)).rehydrate_stop_distances(
+        path,
+        manifest,
+    )
+
+    assert result.staged_rows == 1
+    assert result.source_non_null_rows == 1
+    assert result.updated_rows == 1
+    assert result.target_non_null_rows == 1
+    assert connection.copied["gtfs_stop_distance_stage"][0] == (
+        manifest.snapshot_id,
+        "T1",
+        1,
+        123.4,
+    )
+
+
+@pytest.mark.asyncio
+async def test_stop_distance_rehydration_rejects_non_active_snapshot(tmp_path: Path) -> None:
+    path = tmp_path / "gtfs.zip"
+    _write_gtfs(path)
+    manifest = validate_gtfs_snapshot(
+        path,
+        source_url="https://dados.mobilidade.rio/gtfs/schedule",
+    )
+
+    with pytest.raises(GtfsImportError, match="snapshot is not active"):
+        await PostgresGtfsImporter(
+            FakePool(RehydrateFakeConnection(status="ready"))
+        ).rehydrate_stop_distances(path, manifest)
+
+
+@pytest.mark.asyncio
+async def test_stop_distance_rehydration_rejects_row_mismatch(tmp_path: Path) -> None:
+    path = tmp_path / "gtfs.zip"
+    _write_gtfs(path)
+    manifest = validate_gtfs_snapshot(
+        path,
+        source_url="https://dados.mobilidade.rio/gtfs/schedule",
+    )
+
+    with pytest.raises(GtfsImportError, match="do not exactly match"):
+        await PostgresGtfsImporter(
+            FakePool(RehydrateFakeConnection(matched_rows=0))
+        ).rehydrate_stop_distances(path, manifest)

@@ -9,7 +9,11 @@ from pathlib import Path
 from typing import Any
 from zipfile import ZipFile
 
-from app.modules.mobility.gtfs.models import GtfsImportResult, GtfsSnapshotManifest
+from app.modules.mobility.gtfs.models import (
+    GtfsImportResult,
+    GtfsSnapshotManifest,
+    GtfsStopDistanceRehydrationResult,
+)
 
 _BATCH_SIZE = 20_000
 
@@ -144,6 +148,15 @@ def _stop_time(row: dict[str, str], snapshot_id: str) -> tuple[Any, ...]:
         _integer(row.get("pickup_type")),
         _integer(row.get("drop_off_type")),
         _integer(row.get("timepoint")),
+        _number(row.get("shape_dist_traveled")),
+    )
+
+
+def _stop_distance(row: dict[str, str], snapshot_id: str) -> tuple[Any, ...]:
+    return (
+        snapshot_id,
+        _text(row.get("trip_id"), required=True),
+        _integer(row.get("stop_sequence"), required=True),
         _number(row.get("shape_dist_traveled")),
     )
 
@@ -455,3 +468,103 @@ class PostgresGtfsImporter:
         async with self.pool.acquire() as conn, conn.transaction():
             await conn.execute("SELECT pg_advisory_xact_lock(hashtext('gtfs-snapshot-import'))")
             await _activate(conn, snapshot_id)
+
+    async def rehydrate_stop_distances(
+        self,
+        path: Path,
+        manifest: GtfsSnapshotManifest,
+    ) -> GtfsStopDistanceRehydrationResult:
+        """Fill stop distances only when the validated source is the active snapshot."""
+        async with self.pool.acquire() as conn, conn.transaction():
+            await conn.execute("SELECT pg_advisory_xact_lock(hashtext('gtfs-snapshot-import'))")
+            snapshot = await conn.fetchrow(
+                "SELECT status FROM transit.gtfs_snapshots WHERE snapshot_id = $1",
+                manifest.snapshot_id,
+            )
+            if snapshot is None:
+                raise GtfsImportError("validated GTFS snapshot is not imported")
+            if snapshot["status"] != "active":
+                raise GtfsImportError("validated GTFS snapshot is not active")
+
+            await conn.execute(
+                """
+                CREATE TEMP TABLE gtfs_stop_distance_stage (
+                    snapshot_id text NOT NULL,
+                    trip_id text NOT NULL,
+                    stop_sequence integer NOT NULL,
+                    shape_dist_traveled double precision,
+                    PRIMARY KEY (snapshot_id, trip_id, stop_sequence)
+                ) ON COMMIT DROP
+                """
+            )
+            with ZipFile(path, "r") as archive:
+                names = {name.casefold(): name for name in archive.namelist()}
+                member_name = names.get("stop_times.txt")
+                if member_name is None:
+                    raise GtfsImportError("GTFS archive is missing stop_times.txt")
+                staged_rows = await _copy_rows(
+                    conn,
+                    table_name="gtfs_stop_distance_stage",
+                    columns=(
+                        "snapshot_id",
+                        "trip_id",
+                        "stop_sequence",
+                        "shape_dist_traveled",
+                    ),
+                    rows=_rows(archive, member_name, manifest.snapshot_id, _stop_distance),
+                )
+
+            counts = await conn.fetchrow(
+                """
+                SELECT
+                    count(*)::bigint AS staged_rows,
+                    count(shape_dist_traveled)::bigint AS source_non_null_rows,
+                    count(t.snapshot_id)::bigint AS matched_rows
+                FROM gtfs_stop_distance_stage s
+                LEFT JOIN transit.gtfs_stop_times t
+                  ON t.snapshot_id = s.snapshot_id
+                 AND t.trip_id = s.trip_id
+                 AND t.stop_sequence = s.stop_sequence
+                """
+            )
+            if counts is None or int(counts["staged_rows"]) != staged_rows:
+                raise GtfsImportError("GTFS stop-distance staging count mismatch")
+            source_non_null_rows = int(counts["source_non_null_rows"])
+            if source_non_null_rows == 0:
+                raise GtfsImportError("GTFS snapshot has no stop shape distances")
+            if int(counts["matched_rows"]) != staged_rows:
+                raise GtfsImportError("GTFS source rows do not exactly match the active snapshot")
+
+            update_status = await conn.execute(
+                """
+                UPDATE transit.gtfs_stop_times target
+                   SET shape_dist_traveled = source.shape_dist_traveled
+                  FROM gtfs_stop_distance_stage source
+                 WHERE target.snapshot_id = source.snapshot_id
+                   AND target.trip_id = source.trip_id
+                   AND target.stop_sequence = source.stop_sequence
+                   AND source.shape_dist_traveled IS NOT NULL
+                   AND target.shape_dist_traveled IS DISTINCT FROM source.shape_dist_traveled
+                """
+            )
+            updated_rows = int(update_status.rsplit(" ", 1)[-1])
+            target_non_null_rows = int(
+                await conn.fetchval(
+                    """
+                    SELECT count(*)
+                    FROM transit.gtfs_stop_times
+                    WHERE snapshot_id = $1 AND shape_dist_traveled IS NOT NULL
+                    """,
+                    manifest.snapshot_id,
+                )
+            )
+            if target_non_null_rows != source_non_null_rows:
+                raise GtfsImportError("rehydrated stop-distance count failed verification")
+
+        return GtfsStopDistanceRehydrationResult(
+            snapshot_id=manifest.snapshot_id,
+            staged_rows=staged_rows,
+            source_non_null_rows=source_non_null_rows,
+            updated_rows=updated_rows,
+            target_non_null_rows=target_non_null_rows,
+        )
