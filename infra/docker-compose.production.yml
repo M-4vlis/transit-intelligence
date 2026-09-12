@@ -167,6 +167,7 @@ services:
     networks:
       - tunnel
       - api-edge
+      - egress
     depends_on:
       api:
         condition: service_healthy

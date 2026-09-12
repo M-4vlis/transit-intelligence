@@ -2,7 +2,7 @@
   "expo": {
     "name": "Transit Intelligence",
     "slug": "transit-intelligence",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "orientation": "portrait",
     "scheme": "transitintelligence",
     "userInterfaceStyle": "automatic",

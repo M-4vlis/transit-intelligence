@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Image, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 
 import { colors } from '@/constants/theme';
+import { getApiBaseUrl } from '@/config/runtime';
 import { presentGpsQuality } from '@/features/quality/gps-quality';
 
 import type { MapCenter, MapProviderAdapter, TransitMapProps } from './types';
@@ -44,6 +45,7 @@ function projectToWorld({ latitude, longitude }: MapCenter): PixelPoint {
 function OsmRasterMapSurface({ center, stops, vehicles }: TransitMapProps) {
   const [viewport, setViewport] = useState<ViewportSize>({ width: 0, height: 0 });
   const [tileErrors, setTileErrors] = useState(0);
+  const tileBaseUrl = getApiBaseUrl();
 
   const scene = useMemo(() => {
     if (viewport.width === 0 || viewport.height === 0) {
@@ -70,7 +72,7 @@ function OsmRasterMapSurface({ center, stops, vehicles }: TransitMapProps) {
           key: `${ZOOM}-${tileX}-${tileY}`,
           left: tileX * TILE_SIZE - left,
           top: tileY * TILE_SIZE - top,
-          uri: `https://tile.openstreetmap.org/${ZOOM}/${wrappedTileX}/${tileY}.png`,
+          uri: `${tileBaseUrl}/v1/map/tiles/${ZOOM}/${wrappedTileX}/${tileY}.png`,
         });
       }
     }
@@ -81,7 +83,7 @@ function OsmRasterMapSurface({ center, stops, vehicles }: TransitMapProps) {
     };
 
     return { position, tiles };
-  }, [center, viewport.height, viewport.width]);
+  }, [center, tileBaseUrl, viewport.height, viewport.width]);
 
   const onLayout = ({ nativeEvent }: LayoutChangeEvent) => {
     const { width, height } = nativeEvent.layout;
