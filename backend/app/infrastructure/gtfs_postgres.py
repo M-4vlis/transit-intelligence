@@ -57,8 +57,9 @@ class PostgresGtfsCatalog:
                 FROM transit.vehicle_positions
                 WHERE route_id = $1
                   AND shape_id = $2
-                  AND observed_at >= $3 - make_interval(secs => $4)
-                  AND observed_at <= $3
+                  AND observed_at >= $3::timestamptz
+                      - make_interval(secs => $4::double precision)
+                  AND observed_at <= $3::timestamptz
                   AND speed_mps BETWEEN $5 AND $6
                   AND quality_status <> 'invalid'
                   AND (
@@ -69,7 +70,7 @@ class PostgresGtfsCatalog:
                 position.route_id,
                 position.shape_id,
                 position.observed_at,
-                window_seconds,
+                float(window_seconds),
                 _MIN_ETA_SPEED_MPS,
                 _MAX_ETA_SPEED_MPS,
                 vehicle_only,
