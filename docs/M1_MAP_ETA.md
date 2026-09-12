@@ -41,6 +41,12 @@ degrade com transparência quando o GPS estiver antigo.
 
 ### M1.3 — ETA V0
 
+- [x] preservar `shape_id` do GPS e `shape_dist_traveled` do GTFS nos contratos
+  e armazenamentos novos;
+- [ ] tornar o avanço da janela realtime dependente da persistência completa,
+  permitindo repetição integral após falha;
+- [ ] reidratar a distância das paradas do snapshot ativo ou derivá-la por
+  projeção validada sobre o shape;
 - [ ] casar veículo, viagem, shape e próximas paradas;
 - [ ] calcular ETA geométrico/operacional com limites explícitos;
 - [ ] usar histórico agregado por trecho/faixa horária quando disponível;
