@@ -45,7 +45,7 @@ degrade com transparência quando o GPS estiver antigo.
   e armazenamentos novos;
 - [x] tornar o avanço da janela realtime dependente da persistência completa,
   permitindo repetição integral após falha;
-- [ ] reidratar a distância das paradas do snapshot ativo ou derivá-la por
+- [x] reidratar a distância das paradas do snapshot ativo ou derivá-la por
   projeção validada sobre o shape;
 - [ ] casar veículo, viagem, shape e próximas paradas;
 - [ ] calcular ETA geométrico/operacional com limites explícitos;

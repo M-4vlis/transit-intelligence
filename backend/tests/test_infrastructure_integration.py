@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from zipfile import ZIP_DEFLATED, ZipFile
 
 import pytest
 
@@ -30,6 +31,33 @@ async def _reset_and_migrate(pool) -> None:
         for migration in sorted(migrations_dir.glob("*.sql")):
             async with conn.transaction():
                 await conn.execute(migration.read_text(encoding="utf-8"))
+
+
+def _write_minimal_gtfs(path: Path) -> None:
+    files = {
+        "agency.txt": (
+            "agency_id,agency_name,agency_url,agency_timezone\n"
+            "RIO,SMTR,https://transportes.prefeitura.rio,America/Sao_Paulo\n"
+        ),
+        "routes.txt": (
+            "route_id,agency_id,route_short_name,route_long_name,route_type\n"
+            "483,RIO,483,Penha - General Osorio,3\n"
+        ),
+        "stops.txt": "stop_id,stop_name,stop_lat,stop_lon\nS1,Central,-22.9,-43.2\n",
+        "trips.txt": "route_id,service_id,trip_id,shape_id\n483,WK,T1,SH1\n",
+        "stop_times.txt": (
+            "trip_id,arrival_time,departure_time,stop_id,stop_sequence,"
+            "shape_dist_traveled\nT1,12:00:00,12:00:00,S1,1,123.4\n"
+        ),
+        "calendar_dates.txt": "service_id,date,exception_type\nWK,20260912,1\n",
+        "shapes.txt": (
+            "shape_id,shape_pt_lat,shape_pt_lon,shape_pt_sequence,"
+            "shape_dist_traveled\nSH1,-22.9,-43.2,1,123.4\n"
+        ),
+    }
+    with ZipFile(path, "w", compression=ZIP_DEFLATED) as archive:
+        for filename, content in files.items():
+            archive.writestr(filename, content)
 
 
 @pytest.mark.asyncio
@@ -69,6 +97,41 @@ async def test_postgis_repository_is_idempotent_and_supports_nearby_query() -> N
         assert len(nearby) == 1
         assert nearby[0].vehicle_id == "D12345"
         assert nearby[0].shape_id == "SH1"
+    finally:
+        await pool.close()
+
+
+@pytest.mark.asyncio
+async def test_gtfs_stop_distance_rehydration_uses_real_postgres(tmp_path: Path) -> None:
+    from app.modules.mobility.gtfs.importer import PostgresGtfsImporter
+    from app.modules.mobility.gtfs.validator import validate_gtfs_snapshot
+
+    database_url, _ = _require_integration_env()
+    pool = await create_postgres_pool(database_url, command_timeout=None)
+    try:
+        await _reset_and_migrate(pool)
+        path = tmp_path / "gtfs.zip"
+        _write_minimal_gtfs(path)
+        manifest = validate_gtfs_snapshot(
+            path,
+            source_url="https://dados.mobilidade.rio/gtfs/schedule",
+        )
+        importer = PostgresGtfsImporter(pool)
+        await importer.import_snapshot(path, manifest)
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE transit.gtfs_stop_times SET shape_dist_traveled = NULL"
+            )
+
+        result = await importer.rehydrate_stop_distances(path, manifest)
+
+        assert result.updated_rows == 1
+        assert result.target_non_null_rows == 1
+        async with pool.acquire() as conn:
+            value = await conn.fetchval(
+                "SELECT shape_dist_traveled FROM transit.gtfs_stop_times"
+            )
+        assert value == pytest.approx(123.4)
     finally:
         await pool.close()
 
