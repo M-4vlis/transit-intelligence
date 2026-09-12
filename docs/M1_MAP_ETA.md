@@ -56,13 +56,13 @@ degrade com transparência quando o GPS estiver antigo.
 
 ### M1.4 — Refinamento do mapa após o ETA V0
 
-- [ ] solicitar localização somente por ação do usuário e centralizar o mapa
+- [x] solicitar localização somente por ação do usuário e centralizar o mapa
   nela, mantendo uma posição inicial segura quando a permissão for negada;
-- [ ] permitir mover, ampliar e recentralizar o mapa, com atualização explícita
+- [x] permitir mover, ampliar e recentralizar o mapa, com atualização explícita
   da área visível;
-- [ ] diferenciar visualmente paradas e veículos com ícones, legenda acessível e
+- [x] diferenciar visualmente paradas e veículos com ícones, legenda acessível e
   identificação ao toque;
-- [ ] reduzir sobreposição de marcadores por filtro de linha e agrupamento;
+- [x] reduzir sobreposição de marcadores por filtro de linha e agrupamento;
 - [ ] validar legibilidade, gestos e estados de permissão em aparelho real.
 
 Esses itens foram registrados após o primeiro teste em aparelho da v0.1.2. O

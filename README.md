@@ -57,15 +57,15 @@ durante a execução controlada e comprovada de retenção.
 
 ## Marco em desenvolvimento — M1 mapa + ETA básico
 
-O M1 foi iniciado pela borda pública segura, sem abrir portas adicionais na
-Oracle. A arquitetura preparada usa Cloudflare Tunnel de saída, proxy Nginx
-isolado, allowlist de rotas `/v1/`, limites de requisição/conexão e bloqueio de
-health/metrics. A ativação externa depende de domínio e credencial Cloudflare.
+O backend do M1 está ativo na Oracle ARM64: borda HTTPS por túnel de saída,
+catálogo GTFS versionado, mapa mobile e ETA V0 experimental com degradação
+explícita. Perfis históricos por trecho e faixa horária são atualizados a cada
+15 minutos e o avaliador de replay mede o erro contra chegadas posteriores.
 
-O catálogo GTFS versionado está em implementação: snapshots são identificados
-por SHA-256, importados em uma transação e ativados sem janela de dados mistos.
-As APIs paginadas `/v1/routes` e `/v1/stops/nearby` usam exclusivamente o
-snapshot ativo. As fatias seguintes criam o mapa mobile e entregam o ETA V0.
+O aplicativo de teste pesquisa e favorita linhas, usa localização sob demanda,
+permite navegar no mapa, filtrar e identificar ônibus e consulta as próximas
+paradas com ETA ao tocar num veículo. A validação final do refinamento M1.4 em
+aparelho real e a adoção de um domínio definitivo permanecem pendentes.
 
 Veja `docs/M0_TRANSIT_CORE.md` e `docs/VALIDATION.md`.
 
