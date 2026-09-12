@@ -72,6 +72,7 @@ class FakeConnection:
         records: list[tuple[Any, ...]],
         **kwargs: Any,
     ) -> None:
+        self.copied.setdefault("__schemas__", []).append((table_name, kwargs.get("schema_name")))
         self.copied.setdefault(table_name, []).extend(records)
 
 
@@ -198,6 +199,7 @@ async def test_stop_distances_are_rehydrated_only_for_exact_active_snapshot(
         1,
         123.4,
     )
+    assert connection.copied["__schemas__"] == [("gtfs_stop_distance_stage", None)]
 
 
 @pytest.mark.asyncio

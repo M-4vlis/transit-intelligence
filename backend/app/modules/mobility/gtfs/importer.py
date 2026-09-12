@@ -345,6 +345,7 @@ async def _copy_rows(
     table_name: str,
     columns: Sequence[str],
     rows: Iterator[tuple[Any, ...]],
+    schema_name: str | None = "transit",
 ) -> int:
     count = 0
     batch: list[tuple[Any, ...]] = []
@@ -353,7 +354,7 @@ async def _copy_rows(
         if len(batch) >= _BATCH_SIZE:
             await conn.copy_records_to_table(
                 table_name,
-                schema_name="transit",
+                schema_name=schema_name,
                 records=batch,
                 columns=columns,
             )
@@ -362,7 +363,7 @@ async def _copy_rows(
     if batch:
         await conn.copy_records_to_table(
             table_name,
-            schema_name="transit",
+            schema_name=schema_name,
             records=batch,
             columns=columns,
         )
@@ -512,6 +513,7 @@ class PostgresGtfsImporter:
                         "shape_dist_traveled",
                     ),
                     rows=_rows(archive, member_name, manifest.snapshot_id, _stop_distance),
+                    schema_name=None,
                 )
 
             counts = await conn.fetchrow(
