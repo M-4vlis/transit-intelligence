@@ -1,0 +1,13 @@
+[Unit]
+Description=Refresh Transit Intelligence ETA profiles every 15 minutes
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=15min
+RandomizedDelaySec=30s
+Persistent=true
+Unit=transit-intelligence-eta-profile-refresh.service
+
+[Install]
+WantedBy=timers.target
+

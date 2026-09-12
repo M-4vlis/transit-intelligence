@@ -106,6 +106,9 @@ async def _run(args: argparse.Namespace, database_url: str | None = None) -> dic
     pool = await create_postgres_pool(database_url or settings.database_url, command_timeout=None)
     try:
         async with pool.acquire() as conn, conn.transaction():
+            await conn.execute("SET LOCAL statement_timeout = '5min'")
+            await conn.execute("SET LOCAL lock_timeout = '5s'")
+            await conn.execute("SET LOCAL work_mem = '16MB'")
             profile_count = await refresh_profiles(conn, start=start, end=end)
     finally:
         await pool.close()

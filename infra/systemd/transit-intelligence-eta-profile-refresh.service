@@ -1,0 +1,16 @@
+[Unit]
+Description=Transit Intelligence incremental ETA profile refresh
+Requires=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/apps/transit-intelligence
+ExecStart=/usr/bin/docker compose --env-file .env.production -f infra/docker-compose.production.yml --profile maintenance run -T --rm eta-profile-refresh --lookback-hours 1 --end-delay-minutes 5
+TimeoutStartSec=7min
+Nice=10
+IOSchedulingClass=idle
+NoNewPrivileges=true
+
