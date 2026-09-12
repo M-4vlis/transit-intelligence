@@ -47,7 +47,7 @@ degrade com transparência quando o GPS estiver antigo.
   permitindo repetição integral após falha;
 - [x] reidratar a distância das paradas do snapshot ativo ou derivá-la por
   projeção validada sobre o shape;
-- [ ] casar veículo, viagem, shape e próximas paradas;
+- [x] casar veículo, viagem, shape e próximas paradas;
 - [ ] calcular ETA geométrico/operacional com limites explícitos;
 - [ ] usar histórico agregado por trecho/faixa horária quando disponível;
 - [ ] retornar idade da observação e motivo de indisponibilidade;
