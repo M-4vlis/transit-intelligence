@@ -1,20 +1,28 @@
 import { useMemo, useState } from 'react';
-import { Image, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import {
+  Image,
+  PanResponder,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type LayoutChangeEvent,
+} from 'react-native';
 
-import { colors } from '@/constants/theme';
 import { getApiBaseUrl } from '@/config/runtime';
+import { colors } from '@/constants/theme';
 import { presentGpsQuality } from '@/features/quality/gps-quality';
 
 import type { MapCenter, MapProviderAdapter, TransitMapProps } from './types';
-
-const TILE_SIZE = 256;
-const ZOOM = 14;
-const MAX_LATITUDE = 85.05112878;
-
-interface PixelPoint {
-  x: number;
-  y: number;
-}
+import {
+  centerAfterPan,
+  clampZoom,
+  DEFAULT_ZOOM,
+  MAX_ZOOM,
+  MIN_ZOOM,
+  projectToWorld,
+  TILE_SIZE,
+} from './viewport';
 
 interface ViewportSize {
   width: number;
@@ -28,23 +36,17 @@ interface RasterTile {
   uri: string;
 }
 
-function projectToWorld({ latitude, longitude }: MapCenter): PixelPoint {
-  const scale = TILE_SIZE * 2 ** ZOOM;
-  const boundedLatitude = Math.max(-MAX_LATITUDE, Math.min(MAX_LATITUDE, latitude));
-  const latitudeRadians = (boundedLatitude * Math.PI) / 180;
-
-  return {
-    x: ((longitude + 180) / 360) * scale,
-    y:
-      (1 - Math.log(Math.tan(latitudeRadians) + 1 / Math.cos(latitudeRadians)) / Math.PI) /
-      2 *
-      scale,
-  };
-}
-
-function OsmRasterMapSurface({ center, stops, vehicles }: TransitMapProps) {
+function OsmRasterMapSurface({
+  center,
+  stops,
+  vehicles,
+  userLocation,
+  onCenterChange,
+}: TransitMapProps) {
   const [viewport, setViewport] = useState<ViewportSize>({ width: 0, height: 0 });
   const [tileErrors, setTileErrors] = useState(0);
+  const [zoom, setZoom] = useState(DEFAULT_ZOOM);
+  const [drag, setDrag] = useState({ x: 0, y: 0 });
   const tileBaseUrl = getApiBaseUrl();
 
   const scene = useMemo(() => {
@@ -52,14 +54,14 @@ function OsmRasterMapSurface({ center, stops, vehicles }: TransitMapProps) {
       return null;
     }
 
-    const centerPixel = projectToWorld(center);
+    const centerPixel = projectToWorld(center, zoom);
     const left = centerPixel.x - viewport.width / 2;
     const top = centerPixel.y - viewport.height / 2;
     const minimumTileX = Math.floor(left / TILE_SIZE);
     const maximumTileX = Math.floor((left + viewport.width) / TILE_SIZE);
     const minimumTileY = Math.floor(top / TILE_SIZE);
     const maximumTileY = Math.floor((top + viewport.height) / TILE_SIZE);
-    const tileCount = 2 ** ZOOM;
+    const tileCount = 2 ** zoom;
     const tiles: RasterTile[] = [];
 
     for (let tileY = minimumTileY; tileY <= maximumTileY; tileY += 1) {
@@ -69,21 +71,36 @@ function OsmRasterMapSurface({ center, stops, vehicles }: TransitMapProps) {
       for (let tileX = minimumTileX; tileX <= maximumTileX; tileX += 1) {
         const wrappedTileX = ((tileX % tileCount) + tileCount) % tileCount;
         tiles.push({
-          key: `${ZOOM}-${tileX}-${tileY}`,
+          key: `${zoom}-${tileX}-${tileY}`,
           left: tileX * TILE_SIZE - left,
           top: tileY * TILE_SIZE - top,
-          uri: `${tileBaseUrl}/v1/map/tiles/${ZOOM}/${wrappedTileX}/${tileY}.png`,
+          uri: `${tileBaseUrl}/v1/map/tiles/${zoom}/${wrappedTileX}/${tileY}.png`,
         });
       }
     }
 
     const position = (point: MapCenter) => {
-      const projected = projectToWorld(point);
+      const projected = projectToWorld(point, zoom);
       return { left: projected.x - left, top: projected.y - top };
     };
 
     return { position, tiles };
-  }, [center, tileBaseUrl, viewport.height, viewport.width]);
+  }, [center, tileBaseUrl, viewport.height, viewport.width, zoom]);
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gesture) =>
+          Math.abs(gesture.dx) + Math.abs(gesture.dy) > 5,
+        onPanResponderMove: (_, gesture) => setDrag({ x: gesture.dx, y: gesture.dy }),
+        onPanResponderRelease: (_, gesture) => {
+          setDrag({ x: 0, y: 0 });
+          onCenterChange?.(centerAfterPan(center, gesture.dx, gesture.dy, zoom));
+        },
+        onPanResponderTerminate: () => setDrag({ x: 0, y: 0 }),
+      }),
+    [center, onCenterChange, zoom],
+  );
 
   const onLayout = ({ nativeEvent }: LayoutChangeEvent) => {
     const { width, height } = nativeEvent.layout;
@@ -93,57 +110,89 @@ function OsmRasterMapSurface({ center, stops, vehicles }: TransitMapProps) {
   };
 
   return (
-    <View accessibilityLabel="Mapa com ônibus e pontos próximos" onLayout={onLayout} style={styles.map}>
-      {scene?.tiles.map((tile) => (
-        <Image
-          key={tile.key}
-          onError={() => setTileErrors((count) => count + 1)}
-          source={{ uri: tile.uri }}
-          style={[styles.tile, { left: tile.left, top: tile.top }]}
-        />
-      ))}
+    <View
+      accessibilityLabel="Mapa interativo com ônibus e pontos próximos"
+      onLayout={onLayout}
+      style={styles.map}
+      {...panResponder.panHandlers}>
+      <View
+        pointerEvents="none"
+        style={[styles.scene, { transform: [{ translateX: drag.x }, { translateY: drag.y }] }]}>
+        {scene?.tiles.map((tile) => (
+          <Image
+            key={tile.key}
+            onError={() => setTileErrors((count) => count + 1)}
+            source={{ uri: tile.uri }}
+            style={[styles.tile, { left: tile.left, top: tile.top }]}
+          />
+        ))}
 
-      {scene
-        ? stops.map((stop) => {
-            const position = scene.position({ latitude: stop.latitude, longitude: stop.longitude });
-            return (
-              <View
-                accessible
-                accessibilityLabel={`${stop.stop_name}, ${Math.round(stop.distance_m)} metros`}
-                key={`stop-${stop.stop_id}`}
-                style={[styles.stopMarker, position]}
-              />
-            );
-          })
-        : null}
+        {scene
+          ? stops.map((stop) => {
+              const position = scene.position({ latitude: stop.latitude, longitude: stop.longitude });
+              return <View key={`stop-${stop.stop_id}`} style={[styles.stopMarker, position]} />;
+            })
+          : null}
 
-      {scene
-        ? vehicles.map((vehicle) => {
-            const quality = presentGpsQuality(vehicle);
-            const markerColor =
-              quality.status === 'good'
-                ? colors.good
-                : quality.status === 'degraded'
-                  ? colors.degraded
-                  : colors.stale;
-            const position = scene.position({
-              latitude: vehicle.latitude,
-              longitude: vehicle.longitude,
-            });
-            return (
-              <View
-                accessible
-                accessibilityLabel={`Linha ${vehicle.route_id}, veículo ${vehicle.vehicle_id}, ${quality.label}`}
-                key={`vehicle-${vehicle.agency_id}-${vehicle.vehicle_id}`}
-                style={[styles.vehicleMarker, position, { backgroundColor: markerColor }]}
-              />
-            );
-          })
-        : null}
+        {scene
+          ? vehicles.map((vehicle) => {
+              const quality = presentGpsQuality(vehicle);
+              const markerColor =
+                quality.status === 'good'
+                  ? colors.good
+                  : quality.status === 'degraded'
+                    ? colors.degraded
+                    : colors.stale;
+              const position = scene.position({
+                latitude: vehicle.latitude,
+                longitude: vehicle.longitude,
+              });
+              return (
+                <View
+                  key={`vehicle-${vehicle.agency_id}-${vehicle.vehicle_id}`}
+                  style={[styles.vehicleMarker, position, { backgroundColor: markerColor }]}
+                />
+              );
+            })
+          : null}
+
+        {scene && userLocation ? (
+          <View style={[styles.userMarkerHalo, scene.position(userLocation)]}>
+            <View style={styles.userMarker} />
+          </View>
+        ) : null}
+      </View>
+
+      <View style={styles.zoomControls}>
+        <Pressable
+          accessibilityLabel="Aumentar zoom"
+          accessibilityRole="button"
+          disabled={zoom >= MAX_ZOOM}
+          onPress={() => {
+            setTileErrors(0);
+            setZoom((current) => clampZoom(current + 1));
+          }}
+          style={styles.zoomButton}>
+          <Text style={styles.zoomText}>+</Text>
+        </Pressable>
+        <Pressable
+          accessibilityLabel="Diminuir zoom"
+          accessibilityRole="button"
+          disabled={zoom <= MIN_ZOOM}
+          onPress={() => {
+            setTileErrors(0);
+            setZoom((current) => clampZoom(current - 1));
+          }}
+          style={styles.zoomButton}>
+          <Text style={styles.zoomText}>−</Text>
+        </Pressable>
+      </View>
 
       {tileErrors > 3 ? (
         <View style={styles.tileError}>
-          <Text style={styles.tileErrorText}>O mapa-base não carregou. Os dados podem ser atualizados normalmente.</Text>
+          <Text style={styles.tileErrorText}>
+            O mapa-base não carregou. Os dados podem ser atualizados normalmente.
+          </Text>
         </View>
       ) : null}
       <Text style={styles.attribution}>© OpenStreetMap contributors</Text>
@@ -153,6 +202,7 @@ function OsmRasterMapSurface({ center, stops, vehicles }: TransitMapProps) {
 
 const styles = StyleSheet.create({
   map: { flex: 1, overflow: 'hidden', backgroundColor: '#DCE4EA' },
+  scene: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   tile: { position: 'absolute', width: TILE_SIZE, height: TILE_SIZE },
   stopMarker: {
     position: 'absolute',
@@ -178,6 +228,44 @@ const styles = StyleSheet.create({
     transform: [{ rotate: '45deg' }],
     zIndex: 3,
   },
+  userMarkerHalo: {
+    position: 'absolute',
+    width: 24,
+    height: 24,
+    marginLeft: -12,
+    marginTop: -12,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(22,112,219,0.22)',
+    zIndex: 4,
+  },
+  userMarker: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#1670DB',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  zoomControls: {
+    position: 'absolute',
+    right: 10,
+    top: 10,
+    gap: 6,
+    zIndex: 6,
+  },
+  zoomButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  zoomText: { color: colors.text, fontSize: 24, fontWeight: '700', lineHeight: 27 },
   attribution: {
     position: 'absolute',
     right: 4,

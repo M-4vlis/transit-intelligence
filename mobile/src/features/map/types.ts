@@ -9,6 +9,7 @@ export interface TransitMapProps {
   center: MapCenter;
   stops: NearbyStop[];
   vehicles: VehiclePosition[];
+  userLocation?: MapCenter | null;
   onCenterChange?: (center: MapCenter) => void;
 }
 
