@@ -48,11 +48,11 @@ degrade com transparência quando o GPS estiver antigo.
 - [x] reidratar a distância das paradas do snapshot ativo ou derivá-la por
   projeção validada sobre o shape;
 - [x] casar veículo, viagem, shape e próximas paradas;
-- [ ] calcular ETA geométrico/operacional com limites explícitos;
+- [x] calcular ETA geométrico/operacional com limites explícitos;
 - [ ] usar histórico agregado por trecho/faixa horária quando disponível;
-- [ ] retornar idade da observação e motivo de indisponibilidade;
+- [x] retornar idade da observação e motivo de indisponibilidade;
 - [ ] medir MAE e erro P50/P90 em replay histórico;
-- [ ] impedir que um ETA sem evidência seja apresentado como confiável.
+- [x] impedir que um ETA sem evidência seja apresentado como confiável.
 
 ### M1.4 — Refinamento do mapa após o ETA V0
 
