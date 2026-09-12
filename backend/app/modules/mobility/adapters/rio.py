@@ -182,6 +182,7 @@ class RioRealtimeAdapter(TransitRealtimeAdapter):
         self.max_window_seconds = max_window_seconds
         self.clock = clock or (lambda: datetime.now(UTC))
         self._last_successful_window_end: datetime | None = None
+        self._pending_window: RioRequestWindow | None = None
 
     async def fetch_vehicle_positions(self) -> TransitBatch:
         window = self._next_request_window()
@@ -211,9 +212,10 @@ class RioRealtimeAdapter(TransitRealtimeAdapter):
                 f"all {len(records)} Rio source records failed schema validation"
             )
 
-        # Advance only after response and schema checks succeed. A transient
-        # failure therefore retries from the previous successful cursor.
-        self._last_successful_window_end = window.end_at
+        # Hold the exact window until the ingestion service confirms that every
+        # downstream write succeeded. Retrying after a database/cache failure
+        # therefore cannot skip source time.
+        self._pending_window = window
 
         return TransitBatch(
             source=RIO_SOURCE,
@@ -224,7 +226,19 @@ class RioRealtimeAdapter(TransitRealtimeAdapter):
             observed_fields=observed_fields,
         )
 
+    async def acknowledge_batch(self, batch: TransitBatch) -> None:
+        pending = self._pending_window
+        if pending is None:
+            raise RuntimeError("Rio source has no pending window to acknowledge")
+        if batch.fetched_at != pending.end_at:
+            raise RuntimeError("Rio source acknowledgement does not match pending window")
+        self._last_successful_window_end = pending.end_at
+        self._pending_window = None
+
     def _next_request_window(self) -> RioRequestWindow:
+        if self._pending_window is not None:
+            return self._pending_window
+
         now = self.clock()
         if now.tzinfo is None:
             raise ValueError("Rio adapter clock must return a timezone-aware datetime")

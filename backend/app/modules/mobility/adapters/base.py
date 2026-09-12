@@ -20,3 +20,7 @@ class TransitRealtimeAdapter(ABC):
     async def fetch_vehicle_positions(self) -> TransitBatch:
         """Fetch and normalize the latest vehicle positions from one source."""
         raise NotImplementedError
+
+    async def acknowledge_batch(self, batch: TransitBatch) -> None:
+        """Advance a source cursor after every downstream write has succeeded."""
+        return

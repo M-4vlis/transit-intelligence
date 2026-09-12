@@ -65,6 +65,8 @@ class IngestionService:
         cached = await self.cache.put_many(cacheable) if cacheable else 0
         quality_counts = Counter(position.quality_status.value for position in positions)
 
+        await self.adapter.acknowledge_batch(batch)
+
         return IngestionReport(
             source=batch.source,
             started_at=started_at,

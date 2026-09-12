@@ -43,7 +43,7 @@ degrade com transparência quando o GPS estiver antigo.
 
 - [x] preservar `shape_id` do GPS e `shape_dist_traveled` do GTFS nos contratos
   e armazenamentos novos;
-- [ ] tornar o avanço da janela realtime dependente da persistência completa,
+- [x] tornar o avanço da janela realtime dependente da persistência completa,
   permitindo repetição integral após falha;
 - [ ] reidratar a distância das paradas do snapshot ativo ou derivá-la por
   projeção validada sobre o shape;

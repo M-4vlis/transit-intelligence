@@ -96,7 +96,8 @@ async def test_rio_adapter_uses_incremental_utc_windows_with_overlap() -> None:
             max_window_seconds=300,
             clock=lambda: next(clock_values),
         )
-        await adapter.fetch_vehicle_positions()
+        first = await adapter.fetch_vehicle_positions()
+        await adapter.acknowledge_batch(first)
         await adapter.fetch_vehicle_positions()
 
     assert requested == [
@@ -131,7 +132,8 @@ async def test_rio_adapter_caps_recovery_window_after_long_gap() -> None:
             url="https://dados.mobilidade.rio/gps/sppo",
             clock=lambda: next(clock_values),
         )
-        await adapter.fetch_vehicle_positions()
+        first = await adapter.fetch_vehicle_positions()
+        await adapter.acknowledge_batch(first)
         await adapter.fetch_vehicle_positions()
 
     assert requested[1]["dataInicial"] == "2026-09-03 12:15:00"
@@ -168,6 +170,68 @@ async def test_rio_adapter_does_not_advance_cursor_after_failure() -> None:
         await adapter.fetch_vehicle_positions()
 
     assert requested[1]["dataInicial"] == "2026-09-03 11:59:00"
+
+
+@pytest.mark.asyncio
+async def test_rio_adapter_replays_exact_window_until_downstream_acknowledgement() -> None:
+    requested: list[dict[str, str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requested.append(dict(request.url.params))
+        return httpx.Response(200, json=[current_contract_record()])
+
+    clock_values = iter(
+        [
+            datetime(2026, 9, 3, 12, 0, tzinfo=UTC),
+            datetime(2026, 9, 3, 12, 1, tzinfo=UTC),
+        ]
+    )
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        adapter = RioRealtimeAdapter(
+            client=ResilientJsonClient(client),
+            url="https://dados.mobilidade.rio/gps/sppo",
+            clock=lambda: next(clock_values),
+        )
+        failed_downstream_batch = await adapter.fetch_vehicle_positions()
+        replayed_batch = await adapter.fetch_vehicle_positions()
+        await adapter.acknowledge_batch(replayed_batch)
+        await adapter.fetch_vehicle_positions()
+
+    assert replayed_batch.fetched_at == failed_downstream_batch.fetched_at
+    assert requested == [
+        {
+            "dataInicial": "2026-09-03 11:58:00",
+            "dataFinal": "2026-09-03 12:00:00",
+        },
+        {
+            "dataInicial": "2026-09-03 11:58:00",
+            "dataFinal": "2026-09-03 12:00:00",
+        },
+        {
+            "dataInicial": "2026-09-03 11:59:30",
+            "dataFinal": "2026-09-03 12:01:00",
+        },
+    ]
+
+
+@pytest.mark.asyncio
+async def test_rio_adapter_rejects_mismatched_acknowledgement() -> None:
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(200, json=[current_contract_record()])
+    )
+    async with httpx.AsyncClient(transport=transport) as client:
+        adapter = RioRealtimeAdapter(
+            client=ResilientJsonClient(client),
+            url="https://dados.mobilidade.rio/gps/sppo",
+            clock=lambda: datetime(2026, 9, 3, 12, 0, tzinfo=UTC),
+        )
+        batch = await adapter.fetch_vehicle_positions()
+        mismatched = batch.model_copy(
+            update={"fetched_at": datetime(2026, 9, 3, 12, 1, tzinfo=UTC)}
+        )
+
+        with pytest.raises(RuntimeError, match="does not match"):
+            await adapter.acknowledge_batch(mismatched)
 
 
 @pytest.mark.parametrize(
