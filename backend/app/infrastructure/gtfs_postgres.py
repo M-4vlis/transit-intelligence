@@ -6,8 +6,13 @@ from app.modules.mobility.gtfs.models import (
     GtfsRoute,
     GtfsRoutePage,
     GtfsStopPage,
+    JourneyMatchMethod,
+    JourneyUnavailableReason,
     NearbyGtfsStop,
+    UpcomingGtfsStop,
+    VehicleJourneyMatch,
 )
+from app.modules.mobility.models import VehiclePosition
 
 
 class PostgresGtfsCatalog:
@@ -141,3 +146,171 @@ class PostgresGtfsCatalog:
             for row in rows
         )
         return GtfsStopPage(items=items, limit=limit, offset=offset, total=int(total or 0))
+
+    async def match_vehicle_to_upcoming_stops(
+        self,
+        *,
+        position: VehiclePosition,
+        limit: int,
+        max_projection_distance_m: float,
+    ) -> VehicleJourneyMatch:
+        base = {
+            "vehicle_id": position.vehicle_id,
+            "route_id": position.route_id,
+            "source_trip_id": position.trip_id,
+            "shape_id": position.shape_id,
+            "observed_at": position.observed_at,
+        }
+        if position.shape_id is None:
+            return VehicleJourneyMatch(
+                available=False,
+                unavailable_reason=JourneyUnavailableReason.MISSING_SHAPE_ID,
+                **base,
+            )
+
+        async with self.pool.acquire() as conn:
+            candidate = await conn.fetchrow(
+                """
+                WITH active AS (
+                    SELECT snapshot_id
+                    FROM transit.gtfs_snapshots
+                    WHERE status = 'active'
+                )
+                SELECT trip.snapshot_id, trip.trip_id, trip.shape_id
+                FROM transit.gtfs_trips trip
+                JOIN active USING (snapshot_id)
+                LEFT JOIN transit.gtfs_stop_times stop_time
+                  ON stop_time.snapshot_id = trip.snapshot_id
+                 AND stop_time.trip_id = trip.trip_id
+                WHERE trip.route_id = $1 AND trip.shape_id = $2
+                GROUP BY trip.snapshot_id, trip.trip_id, trip.shape_id
+                ORDER BY (trip.trip_id = $3) DESC NULLS LAST,
+                         count(stop_time.stop_sequence) DESC,
+                         trip.trip_id
+                LIMIT 1
+                """,
+                position.route_id,
+                position.shape_id,
+                position.trip_id,
+            )
+            if candidate is None:
+                return VehicleJourneyMatch(
+                    available=False,
+                    unavailable_reason=JourneyUnavailableReason.ROUTE_SHAPE_NOT_FOUND,
+                    **base,
+                )
+
+            projection = await conn.fetchrow(
+                """
+                WITH input AS (
+                    SELECT ST_SetSRID(ST_MakePoint($4,$3),4326) AS location
+                ), shape_points AS (
+                    SELECT
+                        shape_pt_sequence,
+                        shape_pt_lat,
+                        shape_pt_lon,
+                        shape_dist_traveled,
+                        lead(shape_pt_lat) OVER (ORDER BY shape_pt_sequence) AS next_lat,
+                        lead(shape_pt_lon) OVER (ORDER BY shape_pt_sequence) AS next_lon,
+                        lead(shape_dist_traveled) OVER (
+                            ORDER BY shape_pt_sequence
+                        ) AS next_distance
+                    FROM transit.gtfs_shapes
+                    WHERE snapshot_id = $1
+                      AND shape_id = $2
+                      AND shape_dist_traveled IS NOT NULL
+                ), segments AS (
+                    SELECT
+                        shape_dist_traveled,
+                        next_distance,
+                        ST_MakeLine(
+                            ST_SetSRID(ST_MakePoint(shape_pt_lon,shape_pt_lat),4326),
+                            ST_SetSRID(ST_MakePoint(next_lon,next_lat),4326)
+                        ) AS segment
+                    FROM shape_points
+                    WHERE next_distance IS NOT NULL
+                      AND (shape_pt_lon,shape_pt_lat) <> (next_lon,next_lat)
+                )
+                SELECT
+                    shape_dist_traveled
+                      + ST_LineLocatePoint(segment,input.location)
+                        * (next_distance-shape_dist_traveled)
+                        AS projected_shape_dist_traveled,
+                    ST_Distance(segment::geography,input.location::geography)
+                        AS projection_distance_m
+                FROM segments
+                CROSS JOIN input
+                ORDER BY projection_distance_m
+                LIMIT 1
+                """,
+                candidate["snapshot_id"],
+                candidate["shape_id"],
+                position.latitude,
+                position.longitude,
+            )
+            if projection is None:
+                return VehicleJourneyMatch(
+                    available=False,
+                    unavailable_reason=JourneyUnavailableReason.SHAPE_PROJECTION_FAILED,
+                    snapshot_id=candidate["snapshot_id"],
+                    matched_trip_id=candidate["trip_id"],
+                    **base,
+                )
+
+            projection_distance_m = float(projection["projection_distance_m"])
+            projected_distance = float(projection["projected_shape_dist_traveled"])
+            method = (
+                JourneyMatchMethod.EXACT_TRIP
+                if candidate["trip_id"] == position.trip_id
+                else JourneyMatchMethod.ROUTE_SHAPE_PATTERN
+            )
+            if projection_distance_m > max_projection_distance_m:
+                return VehicleJourneyMatch(
+                    available=False,
+                    unavailable_reason=JourneyUnavailableReason.VEHICLE_OFF_SHAPE,
+                    snapshot_id=candidate["snapshot_id"],
+                    matched_trip_id=candidate["trip_id"],
+                    match_method=method,
+                    projected_shape_dist_traveled=projected_distance,
+                    projection_distance_m=projection_distance_m,
+                    **base,
+                )
+
+            rows = await conn.fetch(
+                """
+                SELECT
+                    stop.stop_id, stop.stop_name,
+                    stop.stop_lat AS latitude, stop.stop_lon AS longitude,
+                    stop_time.stop_sequence, stop_time.shape_dist_traveled,
+                    greatest(stop_time.shape_dist_traveled - $3, 0)
+                        AS shape_distance_ahead
+                FROM transit.gtfs_stop_times stop_time
+                JOIN transit.gtfs_stops stop
+                  ON stop.snapshot_id = stop_time.snapshot_id
+                 AND stop.stop_id = stop_time.stop_id
+                WHERE stop_time.snapshot_id = $1
+                  AND stop_time.trip_id = $2
+                  AND stop_time.shape_dist_traveled >= $3
+                ORDER BY stop_time.shape_dist_traveled, stop_time.stop_sequence
+                LIMIT $4
+                """,
+                candidate["snapshot_id"],
+                candidate["trip_id"],
+                projected_distance,
+                limit,
+            )
+
+        upcoming_stops = tuple(UpcomingGtfsStop.model_validate(dict(row)) for row in rows)
+        return VehicleJourneyMatch(
+            available=bool(upcoming_stops),
+            unavailable_reason=(
+                None if upcoming_stops else JourneyUnavailableReason.NO_UPCOMING_STOPS
+            ),
+            snapshot_id=candidate["snapshot_id"],
+            matched_trip_id=candidate["trip_id"],
+            match_method=method,
+            projected_shape_dist_traveled=projected_distance,
+            projection_distance_m=projection_distance_m,
+            upcoming_stops=upcoming_stops,
+            **base,
+        )

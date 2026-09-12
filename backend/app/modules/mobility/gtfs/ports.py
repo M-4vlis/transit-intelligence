@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from app.modules.mobility.gtfs.models import GtfsRoutePage, GtfsStopPage
+from app.modules.mobility.gtfs.models import GtfsRoutePage, GtfsStopPage, VehicleJourneyMatch
+from app.modules.mobility.models import VehiclePosition
 
 
 class GtfsCatalog(Protocol):
@@ -23,3 +24,11 @@ class GtfsCatalog(Protocol):
         limit: int,
         offset: int,
     ) -> GtfsStopPage: ...
+
+    async def match_vehicle_to_upcoming_stops(
+        self,
+        *,
+        position: VehiclePosition,
+        limit: int,
+        max_projection_distance_m: float,
+    ) -> VehicleJourneyMatch: ...

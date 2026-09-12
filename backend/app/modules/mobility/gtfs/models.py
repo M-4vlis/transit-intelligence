@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from enum import StrEnum
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -101,3 +102,46 @@ class GtfsStopPage(BaseModel):
     limit: int
     offset: int
     total: int
+
+
+class JourneyMatchMethod(StrEnum):
+    EXACT_TRIP = "exact_trip"
+    ROUTE_SHAPE_PATTERN = "route_shape_pattern"
+
+
+class JourneyUnavailableReason(StrEnum):
+    MISSING_SHAPE_ID = "missing_shape_id"
+    ROUTE_SHAPE_NOT_FOUND = "route_shape_not_found"
+    SHAPE_PROJECTION_FAILED = "shape_projection_failed"
+    VEHICLE_OFF_SHAPE = "vehicle_off_shape"
+    NO_UPCOMING_STOPS = "no_upcoming_stops"
+
+
+class UpcomingGtfsStop(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    stop_id: str
+    stop_name: str
+    latitude: float
+    longitude: float
+    stop_sequence: int = Field(ge=0)
+    shape_dist_traveled: float = Field(ge=0)
+    shape_distance_ahead: float = Field(ge=0)
+
+
+class VehicleJourneyMatch(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    available: bool
+    unavailable_reason: JourneyUnavailableReason | None = None
+    snapshot_id: str | None = None
+    vehicle_id: str
+    route_id: str
+    source_trip_id: str | None = None
+    matched_trip_id: str | None = None
+    shape_id: str | None = None
+    match_method: JourneyMatchMethod | None = None
+    observed_at: datetime
+    projected_shape_dist_traveled: float | None = Field(default=None, ge=0)
+    projection_distance_m: float | None = Field(default=None, ge=0)
+    upcoming_stops: tuple[UpcomingGtfsStop, ...] = ()

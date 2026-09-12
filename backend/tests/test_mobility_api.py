@@ -8,7 +8,10 @@ from app.modules.mobility.gtfs.models import (
     GtfsRoute,
     GtfsRoutePage,
     GtfsStopPage,
+    JourneyMatchMethod,
     NearbyGtfsStop,
+    UpcomingGtfsStop,
+    VehicleJourneyMatch,
 )
 from app.modules.mobility.models import VehiclePosition
 
@@ -75,6 +78,35 @@ class FakeGtfsCatalog:
             total=1,
         )
 
+    async def match_vehicle_to_upcoming_stops(self, **kwargs):
+        assert kwargs["position"].vehicle_id == "D12345"
+        assert kwargs["limit"] == 3
+        assert kwargs["max_projection_distance_m"] == 250.0
+        return VehicleJourneyMatch(
+            available=True,
+            snapshot_id="a" * 64,
+            vehicle_id="D12345",
+            route_id="457",
+            source_trip_id=None,
+            matched_trip_id="T1",
+            shape_id="SH1",
+            match_method=JourneyMatchMethod.ROUTE_SHAPE_PATTERN,
+            observed_at=sample_position().observed_at,
+            projected_shape_dist_traveled=50,
+            projection_distance_m=4.2,
+            upcoming_stops=(
+                UpcomingGtfsStop(
+                    stop_id="S1",
+                    stop_name="Central",
+                    latitude=-22.9,
+                    longitude=-43.2,
+                    stop_sequence=1,
+                    shape_dist_traveled=100,
+                    shape_distance_ahead=50,
+                ),
+            ),
+        )
+
 
 def test_route_vehicles_endpoint() -> None:
     app.dependency_overrides[get_live_cache] = lambda: FakeCache()
@@ -134,5 +166,34 @@ def test_nearby_static_stops_include_distance() -> None:
             )
         assert response.status_code == 200
         assert response.json()["items"][0]["distance_m"] == 42.5
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_vehicle_upcoming_stops_exposes_match_evidence() -> None:
+    app.dependency_overrides[get_live_cache] = lambda: FakeCache()
+    app.dependency_overrides[get_gtfs_catalog] = lambda: FakeGtfsCatalog()
+    try:
+        with TestClient(app) as client:
+            response = client.get(
+                "/v1/routes/457/vehicles/D12345/upcoming-stops",
+                params={"limit": 3},
+            )
+        assert response.status_code == 200
+        assert response.json()["available"] is True
+        assert response.json()["match_method"] == "route_shape_pattern"
+        assert response.json()["projection_distance_m"] == 4.2
+        assert response.json()["upcoming_stops"][0]["stop_id"] == "S1"
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_vehicle_upcoming_stops_requires_a_live_vehicle() -> None:
+    app.dependency_overrides[get_live_cache] = lambda: FakeCache()
+    app.dependency_overrides[get_gtfs_catalog] = lambda: FakeGtfsCatalog()
+    try:
+        with TestClient(app) as client:
+            response = client.get("/v1/routes/457/vehicles/D99999/upcoming-stops")
+        assert response.status_code == 404
     finally:
         app.dependency_overrides.clear()

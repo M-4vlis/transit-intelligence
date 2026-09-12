@@ -43,16 +43,27 @@ def _write_minimal_gtfs(path: Path) -> None:
             "route_id,agency_id,route_short_name,route_long_name,route_type\n"
             "483,RIO,483,Penha - General Osorio,3\n"
         ),
-        "stops.txt": "stop_id,stop_name,stop_lat,stop_lon\nS1,Central,-22.9,-43.2\n",
+        "stops.txt": (
+            "stop_id,stop_name,stop_lat,stop_lon\n"
+            "S1,Start,-22.9,-43.2\n"
+            "S2,Central,-22.9,-43.199\n"
+            "S3,End,-22.9,-43.198\n"
+        ),
         "trips.txt": "route_id,service_id,trip_id,shape_id\n483,WK,T1,SH1\n",
         "stop_times.txt": (
             "trip_id,arrival_time,departure_time,stop_id,stop_sequence,"
-            "shape_dist_traveled\nT1,12:00:00,12:00:00,S1,1,123.4\n"
+            "shape_dist_traveled\n"
+            "T1,12:00:00,12:00:00,S1,1,0\n"
+            "T1,12:01:00,12:01:00,S2,2,100\n"
+            "T1,12:02:00,12:02:00,S3,3,200\n"
         ),
         "calendar_dates.txt": "service_id,date,exception_type\nWK,20260912,1\n",
         "shapes.txt": (
             "shape_id,shape_pt_lat,shape_pt_lon,shape_pt_sequence,"
-            "shape_dist_traveled\nSH1,-22.9,-43.2,1,123.4\n"
+            "shape_dist_traveled\n"
+            "SH1,-22.9,-43.2,1,0\n"
+            "SH1,-22.9,-43.199,2,100\n"
+            "SH1,-22.9,-43.198,3,200\n"
         ),
     }
     with ZipFile(path, "w", compression=ZIP_DEFLATED) as archive:
@@ -125,13 +136,61 @@ async def test_gtfs_stop_distance_rehydration_uses_real_postgres(tmp_path: Path)
 
         result = await importer.rehydrate_stop_distances(path, manifest)
 
-        assert result.updated_rows == 1
-        assert result.target_non_null_rows == 1
+        assert result.updated_rows == 3
+        assert result.target_non_null_rows == 3
         async with pool.acquire() as conn:
-            value = await conn.fetchval(
-                "SELECT shape_dist_traveled FROM transit.gtfs_stop_times"
+            values = await conn.fetch(
+                "SELECT shape_dist_traveled FROM transit.gtfs_stop_times "
+                "ORDER BY stop_sequence"
             )
-        assert value == pytest.approx(123.4)
+        assert [row["shape_dist_traveled"] for row in values] == pytest.approx([0, 100, 200])
+    finally:
+        await pool.close()
+
+
+@pytest.mark.asyncio
+async def test_vehicle_is_projected_to_shape_and_upcoming_stops(tmp_path: Path) -> None:
+    from app.infrastructure.gtfs_postgres import PostgresGtfsCatalog
+    from app.modules.mobility.gtfs.importer import PostgresGtfsImporter
+    from app.modules.mobility.gtfs.models import JourneyMatchMethod
+    from app.modules.mobility.gtfs.validator import validate_gtfs_snapshot
+
+    database_url, _ = _require_integration_env()
+    pool = await create_postgres_pool(database_url, command_timeout=None)
+    try:
+        await _reset_and_migrate(pool)
+        path = tmp_path / "gtfs.zip"
+        _write_minimal_gtfs(path)
+        manifest = validate_gtfs_snapshot(
+            path,
+            source_url="https://dados.mobilidade.rio/gtfs/schedule",
+        )
+        await PostgresGtfsImporter(pool).import_snapshot(path, manifest)
+        position = VehiclePosition(
+            agency_id="br-rj-rio-smtr-sppo",
+            vehicle_id="D12345",
+            route_id="483",
+            trip_id="T1",
+            shape_id="SH1",
+            latitude=-22.9,
+            longitude=-43.1994,
+            observed_at=datetime.now(UTC),
+            received_at=datetime.now(UTC),
+            source="integration-test",
+        )
+
+        result = await PostgresGtfsCatalog(pool).match_vehicle_to_upcoming_stops(
+            position=position,
+            limit=2,
+            max_projection_distance_m=250,
+        )
+
+        assert result.available is True
+        assert result.match_method is JourneyMatchMethod.EXACT_TRIP
+        assert result.projection_distance_m == pytest.approx(0, abs=0.1)
+        assert result.projected_shape_dist_traveled == pytest.approx(60, abs=0.1)
+        assert [stop.stop_id for stop in result.upcoming_stops] == ["S2", "S3"]
+        assert result.upcoming_stops[0].shape_distance_ahead == pytest.approx(40, abs=0.1)
     finally:
         await pool.close()
 

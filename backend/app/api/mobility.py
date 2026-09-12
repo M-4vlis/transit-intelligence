@@ -1,15 +1,18 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Path, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 
 from app.api.deps import get_gtfs_catalog, get_live_cache, get_position_repository
 from app.modules.mobility.adapters.rio import RIO_AGENCY
-from app.modules.mobility.gtfs.models import GtfsRoutePage, GtfsStopPage
+from app.modules.mobility.gtfs.models import GtfsRoutePage, GtfsStopPage, VehicleJourneyMatch
 from app.modules.mobility.gtfs.ports import GtfsCatalog
 from app.modules.mobility.models import VehiclePosition
 from app.modules.mobility.ports import LivePositionCache, PositionRepository
 
 router = APIRouter(prefix="/v1", tags=["mobility"])
+
+_SAFE_ID_PATTERN = r"^[A-Za-z0-9._-]+$"
+_MAX_SHAPE_PROJECTION_DISTANCE_M = 250.0
 
 
 @router.get("/routes", response_model=GtfsRoutePage)
@@ -44,12 +47,37 @@ async def nearby_stops(
 async def vehicles_by_route(
     route_id: Annotated[
         str,
-        Path(min_length=1, max_length=32, pattern=r"^[A-Za-z0-9._-]+$"),
+        Path(min_length=1, max_length=32, pattern=_SAFE_ID_PATTERN),
     ],
     cache: Annotated[LivePositionCache, Depends(get_live_cache)],
 ) -> list[VehiclePosition]:
     positions = await cache.by_route(agency_id=RIO_AGENCY, route_id=route_id)
     return list(positions)
+
+
+@router.get(
+    "/routes/{route_id}/vehicles/{vehicle_id}/upcoming-stops",
+    response_model=VehicleJourneyMatch,
+)
+async def vehicle_upcoming_stops(
+    route_id: Annotated[str, Path(min_length=1, max_length=32, pattern=_SAFE_ID_PATTERN)],
+    vehicle_id: Annotated[str, Path(min_length=1, max_length=32, pattern=_SAFE_ID_PATTERN)],
+    cache: Annotated[LivePositionCache, Depends(get_live_cache)],
+    catalog: Annotated[GtfsCatalog, Depends(get_gtfs_catalog)],
+    limit: Annotated[int, Query(ge=1, le=10)] = 5,
+) -> VehicleJourneyMatch:
+    positions = await cache.by_route(agency_id=RIO_AGENCY, route_id=route_id)
+    position = next((item for item in positions if item.vehicle_id == vehicle_id), None)
+    if position is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="live vehicle was not found on this route",
+        )
+    return await catalog.match_vehicle_to_upcoming_stops(
+        position=position,
+        limit=limit,
+        max_projection_distance_m=_MAX_SHAPE_PROJECTION_DISTANCE_M,
+    )
 
 
 @router.get("/vehicles/nearby", response_model=list[VehiclePosition])
