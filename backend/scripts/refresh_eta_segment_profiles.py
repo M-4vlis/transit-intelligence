@@ -78,7 +78,7 @@ async def refresh_profiles(
           AND speed_mps BETWEEN $4 AND $5
           AND quality_status <> 'invalid'
           AND route_id <> ''
-        GROUP BY window_start, route_id, latitude_cell, longitude_cell, local_time_band
+        GROUP BY 1, 2, 3, 4, 5, 6
         HAVING count(*) >= $6
         ON CONFLICT (window_start, route_id, latitude_cell, longitude_cell)
         DO UPDATE SET
