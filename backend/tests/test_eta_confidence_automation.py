@@ -17,6 +17,18 @@ TIMER = (
     / "transit-intelligence-eta-confidence-cohort.timer"
 )
 COMPOSE = ROOT / "infra" / "docker-compose.production.yml"
+RESTORE_SERVICE = (
+    ROOT
+    / "infra"
+    / "systemd"
+    / "transit-intelligence-confidence-evidence-restore.service"
+)
+RESTORE_TIMER = (
+    ROOT
+    / "infra"
+    / "systemd"
+    / "transit-intelligence-confidence-evidence-restore.timer"
+)
 
 
 def test_cohort_script_is_concurrent_safe_and_keeps_audit_artifacts() -> None:
@@ -58,3 +70,33 @@ def test_eta_replay_has_explicit_resource_limits() -> None:
 
     assert replay["mem_limit"] == "768m"
     assert replay["cpus"] == 0.35
+
+
+def test_confidence_evidence_services_are_bounded_and_have_no_data_access() -> None:
+    compose = yaml.safe_load(COMPOSE.read_text(encoding="utf-8"))
+    services = compose["services"]
+    archive = services["confidence-evidence-archive"]
+    restore = services["confidence-evidence-restore-check"]
+
+    assert archive["networks"] == ["egress"]
+    assert restore["networks"] == ["egress"]
+    assert archive["read_only"] is True
+    assert restore["read_only"] is True
+    assert archive["cap_drop"] == ["ALL"]
+    assert restore["cap_drop"] == ["ALL"]
+    assert archive["mem_limit"] == "256m"
+    assert restore["mem_limit"] == "256m"
+    assert ":/evidence" in archive["volumes"][0]
+
+
+def test_confidence_restore_timer_is_daily_persistent_and_low_priority() -> None:
+    timer = RESTORE_TIMER.read_text(encoding="utf-8")
+    service = RESTORE_SERVICE.read_text(encoding="utf-8")
+
+    assert "OnCalendar=*-*-* 05:20:00 UTC" in timer
+    assert "Persistent=true" in timer
+    assert "WantedBy=timers.target" in timer
+    assert "User=ubuntu" in service
+    assert "Nice=15" in service
+    assert "CPUWeight=10" in service
+    assert "NoNewPrivileges=true" in service

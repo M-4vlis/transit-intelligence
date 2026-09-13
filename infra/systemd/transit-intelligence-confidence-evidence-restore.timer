@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily restore check for Transit Intelligence M2 confidence evidence
+
+[Timer]
+OnCalendar=*-*-* 05:20:00 UTC
+RandomizedDelaySec=10min
+Persistent=true
+Unit=transit-intelligence-confidence-evidence-restore.service
+
+[Install]
+WantedBy=timers.target

@@ -409,6 +409,67 @@ services:
     cap_drop:
       - ALL
 
+  confidence-evidence-archive:
+    profiles: ["maintenance"]
+    build:
+      context: ../backend
+      args:
+        INSTALL_TARGET: ".[archive]"
+    command: ["python", "scripts/archive_eta_confidence_evidence.py"]
+    environment:
+      <<: *app-environment
+      ARCHIVE_STORAGE_KIND: ${ARCHIVE_STORAGE_KIND:-local}
+      ARCHIVE_S3_ENDPOINT: ${ARCHIVE_S3_ENDPOINT:-}
+      ARCHIVE_S3_REGION: ${ARCHIVE_S3_REGION:-}
+      ARCHIVE_S3_BUCKET: ${ARCHIVE_S3_BUCKET:-}
+      ARCHIVE_S3_ACCESS_KEY_ID: ${ARCHIVE_S3_ACCESS_KEY_ID:-}
+      ARCHIVE_S3_SECRET_ACCESS_KEY: ${ARCHIVE_S3_SECRET_ACCESS_KEY:-}
+      ARCHIVE_S3_PREFIX: ${ARCHIVE_S3_PREFIX:-transit-history}
+      CONFIDENCE_EVIDENCE_DIR: /evidence
+    volumes:
+      - ${TRANSIT_CONFIDENCE_REPORT_DIR:-/home/ubuntu/artifacts/transit-intelligence/confidence-cohorts}:/evidence
+    networks:
+      - egress
+    restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 256m
+    cpus: 0.2
+
+  confidence-evidence-restore-check:
+    profiles: ["maintenance"]
+    build:
+      context: ../backend
+      args:
+        INSTALL_TARGET: ".[archive]"
+    command: ["python", "scripts/restore_eta_confidence_evidence.py"]
+    environment:
+      <<: *app-environment
+      ARCHIVE_STORAGE_KIND: ${ARCHIVE_STORAGE_KIND:-local}
+      ARCHIVE_S3_ENDPOINT: ${ARCHIVE_S3_ENDPOINT:-}
+      ARCHIVE_S3_REGION: ${ARCHIVE_S3_REGION:-}
+      ARCHIVE_S3_BUCKET: ${ARCHIVE_S3_BUCKET:-}
+      ARCHIVE_S3_ACCESS_KEY_ID: ${ARCHIVE_S3_ACCESS_KEY_ID:-}
+      ARCHIVE_S3_SECRET_ACCESS_KEY: ${ARCHIVE_S3_SECRET_ACCESS_KEY:-}
+      ARCHIVE_S3_PREFIX: ${ARCHIVE_S3_PREFIX:-transit-history}
+    networks:
+      - egress
+    restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 256m
+    cpus: 0.2
+
   archive-restore-check:
     profiles: ["maintenance"]
     build:

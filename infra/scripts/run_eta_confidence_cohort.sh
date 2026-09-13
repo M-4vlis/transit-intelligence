@@ -55,5 +55,11 @@ mv "$calibration_tmp" "$calibration"
 sha256sum "$calibration" >>"$REPORT_DIR/SHA256SUMS"
 ln -sfn "$(basename "$calibration")" "$REPORT_DIR/calibration-latest.json"
 
+docker compose \
+  --env-file "$ENV_FILE" \
+  -f "$COMPOSE_FILE" \
+  --profile maintenance \
+  run --rm -T confidence-evidence-archive
+
 printf 'TRANSIT_ETA_CONFIDENCE_COHORT_OK report=%s summary=%s calibration=%s\n' \
   "$report" "$summary" "$calibration"

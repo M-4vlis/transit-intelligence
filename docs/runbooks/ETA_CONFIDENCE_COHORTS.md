@@ -34,6 +34,13 @@ volume por banda, diversidade de rotas e holdout. Mesmo depois disso, o máximo
 que pode retornar é `candidate_for_manual_review`; promoção automática é
 proibida.
 
+Ao fim de cada execução, os três JSON imutáveis e uma fotografia do
+`SHA256SUMS` são enviados ao Object Storage configurado. Cada upload é relido
+integralmente e comparado por tamanho, SHA-256 e metadado remoto. O manifesto
+mais recente referencia todo o conjunto acumulado, permitindo reconstrução
+completa. O estado local evita reenvios e rejeita alteração de um artefato já
+arquivado.
+
 ## Operação
 
 ```bash
@@ -42,7 +49,14 @@ systemctl list-timers transit-intelligence-eta-confidence-cohort.timer
 sudo journalctl -u transit-intelligence-eta-confidence-cohort.service -n 50
 cat /home/ubuntu/artifacts/transit-intelligence/confidence-cohorts/summary-latest.json
 cat /home/ubuntu/artifacts/transit-intelligence/confidence-cohorts/calibration-latest.json
+sudo /usr/local/sbin/transit-intelligence-archive-confidence-evidence
+sudo /usr/local/sbin/transit-intelligence-restore-confidence-evidence
 ```
+
+O restore check também roda diariamente. Ele baixa o manifesto mais recente e
+todos os objetos referenciados em diretório temporário, verifica SHA-256 remoto,
+tamanho e cada entrada do `SHA256SUMS`, e apaga a cópia temporária ao terminar.
+Ele nunca restaura sobre o diretório de produção.
 
 Execução manual segura:
 
