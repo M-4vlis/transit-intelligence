@@ -522,6 +522,8 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    mem_limit: 768m
+    cpus: 0.35
 
   eta-profile-refresh:
     profiles: ["maintenance"]

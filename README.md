@@ -75,7 +75,13 @@ passageiro uma confiança que ainda não foi calibrada. A modernização visual 
 formalizada como gate obrigatório após a estabilização do contrato do M2 e antes
 da beta pública.
 
+A calibração acumula automaticamente oito coortes por dia. Relatórios e
+checksums são preservados, com revisões planejadas após 7, 14 e 30 dias, enquanto
+o restante do M2 avança em paralelo.
+
 Veja `docs/M0_TRANSIT_CORE.md` e `docs/VALIDATION.md`.
 
 
-Runbooks operacionais: `docs/runbooks/FIRST_DEPLOYMENT_ORACLE_ARM64.md` e `docs/runbooks/SOAK_TEST_24H.md`.
+Runbooks operacionais: `docs/runbooks/FIRST_DEPLOYMENT_ORACLE_ARM64.md`,
+`docs/runbooks/SOAK_TEST_24H.md` e
+`docs/runbooks/ETA_CONFIDENCE_COHORTS.md`.

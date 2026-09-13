@@ -1,0 +1,17 @@
+[Unit]
+Description=Transit Intelligence read-only ETA confidence cohort
+Requires=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/apps/transit-intelligence
+ExecStart=/bin/bash infra/scripts/run_eta_confidence_cohort.sh
+TimeoutStartSec=10min
+Nice=15
+IOSchedulingClass=idle
+CPUWeight=10
+IOWeight=10
+NoNewPrivileges=true

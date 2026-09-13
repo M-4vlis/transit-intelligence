@@ -21,6 +21,8 @@ confiança depois que cada faixa demonstrar esse comportamento em chegadas reais
 
 - [x] ampliar o conjunto rotulado inicial para pelo menos 300 chegadas
   observadas;
+- [x] automatizar oito coortes diárias, com relatórios imutáveis, SHA-256 e
+  resumo reproduzível;
 - [ ] cobrir pico, entrepico, noite e dias independentes;
 - [ ] garantir pelo menos 50 resultados por faixa que será publicada;
 - [ ] demonstrar MAE e P90 monotônicos entre alta, média e baixa confiança;
@@ -54,6 +56,13 @@ deliberadamente simples e auditáveis; ainda não representam probabilidade.
 Até a conclusão da calibração, o campo existente continua sendo
 `experimental`. Números e faixas candidatas aparecem apenas no replay interno e
 não podem ser mostrados ao passageiro.
+
+## Janela de observação
+
+A coleta automática permanece ativa enquanto o M2 estiver em calibração. Os
+marcos de revisão são 7, 14 e 30 dias, sem prazo máximo rígido. Desenvolvimento
+da API, diagnósticos do ETA e modernização visual podem avançar em paralelo;
+somente a promoção pública do score depende da evidência acumulada.
 
 ## Definição de pronto
 
