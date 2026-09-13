@@ -94,7 +94,7 @@ def _evidence(directory: Path) -> None:
     for name in names:
         (directory / name).write_text("{}", encoding="utf-8")
     checksums = "".join(
-        f"{sha256((directory / name).read_bytes()).hexdigest()}  {name}\n"
+        f"{sha256((directory / name).read_bytes()).hexdigest()}  {directory / name}\n"
         for name in names
     )
     (directory / "SHA256SUMS").write_text(checksums, encoding="utf-8")

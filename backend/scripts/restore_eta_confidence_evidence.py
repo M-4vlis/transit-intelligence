@@ -107,10 +107,14 @@ def restore_latest_evidence(
         parts = line.split(maxsplit=1)
         if len(parts) != 2:
             raise RuntimeError("invalid restored SHA256SUMS line")
-        digest, name = parts
-        name = name.lstrip("* ")
+        digest, recorded_path = parts
+        recorded_path = recorded_path.lstrip("* ")
+        name = Path(recorded_path).name
         if not _SAFE_NAME.fullmatch(name):
-            raise RuntimeError(f"unsafe checksum evidence name: {name}")
+            raise RuntimeError(f"unsafe checksum evidence name: {recorded_path}")
+        previous_digest = expected_checksums.get(name)
+        if previous_digest is not None and previous_digest != digest:
+            raise RuntimeError(f"conflicting checksums for confidence evidence: {name}")
         expected_checksums[name] = digest
     checked_files = 0
     for item in restored:
