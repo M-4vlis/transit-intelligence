@@ -160,6 +160,7 @@ def test_candidate_confidence_replay_reports_monotonic_error_bands() -> None:
     )
 
     assert report["calibration_status"] == "uncalibrated"
+    assert report["candidate_version"] == "m2-candidate-v2"
     assert report["monotonic_mae"] is True
     assert report["bands"]["high"]["mae_seconds"] == 20
     assert report["bands"]["high"]["interval_coverage"] == 1

@@ -5,6 +5,10 @@ from enum import StrEnum
 
 from app.modules.mobility.gtfs.models import EtaEvidence, EtaMethod, JourneyMatchMethod
 
+CANDIDATE_CONFIDENCE_VERSION = "m2-candidate-v2"
+_HIGH_BAND_MINIMUM = 90
+_MEDIUM_BAND_MINIMUM = 75
+
 
 class CandidateConfidenceBand(StrEnum):
     LOW = "low"
@@ -98,9 +102,9 @@ def assess_candidate_confidence(
     score = sum(components.values())
     band = (
         CandidateConfidenceBand.HIGH
-        if score >= 75
+        if score >= _HIGH_BAND_MINIMUM
         else CandidateConfidenceBand.MEDIUM
-        if score >= 50
+        if score >= _MEDIUM_BAND_MINIMUM
         else CandidateConfidenceBand.LOW
     )
     reasons: list[str] = []

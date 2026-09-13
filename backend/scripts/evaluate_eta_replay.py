@@ -12,6 +12,7 @@ from app.core.config import settings
 from app.infrastructure.gtfs_postgres import PostgresGtfsCatalog
 from app.infrastructure.postgres import create_postgres_pool
 from app.modules.mobility.confidence import (
+    CANDIDATE_CONFIDENCE_VERSION,
     CandidateConfidenceBand,
     assess_candidate_confidence,
 )
@@ -93,6 +94,7 @@ def _candidate_confidence_report(
             <= maes[CandidateConfidenceBand.LOW.value]
         )
     return {
+        "candidate_version": CANDIDATE_CONFIDENCE_VERSION,
         "calibration_status": "uncalibrated",
         "mean_score": round(sum(scores) / len(scores), 3) if scores else None,
         "score_p10": (
