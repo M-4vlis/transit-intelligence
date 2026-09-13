@@ -47,6 +47,10 @@ intervalo, método e fatores técnicos, mas omite veículo, viagem, shape e para
 O calibrador offline separa os dois dias mais recentes como holdout e nunca
 autoriza promoção automática.
 
+O contrato `m2-shadow-v1` já materializa, somente nas observações privadas, o
+nível candidato, a janela de chegada e os motivos explicáveis. Ele traz
+`publishable=false` por construção e não faz parte do schema da API pública.
+
 ### M2.2 — Contrato público
 
 - [ ] congelar versão do algoritmo e limites calibrados;

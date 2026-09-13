@@ -184,6 +184,10 @@ def test_vehicle_upcoming_stops_exposes_match_evidence() -> None:
         assert response.json()["match_method"] == "route_shape_pattern"
         assert response.json()["projection_distance_m"] == 4.2
         assert response.json()["upcoming_stops"][0]["stop_id"] == "S1"
+        public_payload = response.json()
+        assert "shadow_confidence" not in public_payload
+        assert "candidate_score" not in public_payload
+        assert "candidate_level" not in public_payload
     finally:
         app.dependency_overrides.clear()
 

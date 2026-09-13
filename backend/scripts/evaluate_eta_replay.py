@@ -16,6 +16,10 @@ from app.modules.mobility.confidence import (
     CandidateConfidenceBand,
     assess_candidate_confidence,
 )
+from app.modules.mobility.confidence_contract import (
+    SHADOW_CONFIDENCE_CONTRACT_VERSION,
+    build_shadow_confidence_contract,
+)
 from app.modules.mobility.models import VehiclePosition
 
 EVALUATION_SCHEMA_VERSION = 2
@@ -375,6 +379,13 @@ async def _run(
                     projection_distance_m=match.projection_distance_m or 0,
                     match_method=match.match_method,
                 )
+                shadow_confidence = build_shadow_confidence_contract(
+                    candidate=confidence,
+                    calibration_status="uncalibrated",
+                    estimated_eta_seconds=stop.eta_seconds,
+                    lower_eta_seconds=stop.eta_lower_seconds,
+                    upper_eta_seconds=stop.eta_upper_seconds,
+                )
                 confidence_errors[confidence.band.value].append(absolute_error)
                 confidence_scores.append(confidence.score)
                 confidence_component_totals.update(confidence.components)
@@ -413,6 +424,7 @@ async def _run(
                         "evidence_window_seconds": match.eta_evidence.window_seconds,
                         "confidence_components": confidence.components,
                         "confidence_reasons": list(confidence.reasons),
+                        "shadow_confidence": shadow_confidence.model_dump(mode="json"),
                     }
                 )
                 if interval_hit:
@@ -430,6 +442,7 @@ async def _run(
         "calibration_observation_schema_version": (
             CALIBRATION_OBSERVATION_SCHEMA_VERSION
         ),
+        "shadow_confidence_contract_version": SHADOW_CONFIDENCE_CONTRACT_VERSION,
         "status": (
             "sufficient_data" if outcome_count >= args.min_outcomes else "insufficient_data"
         ),
