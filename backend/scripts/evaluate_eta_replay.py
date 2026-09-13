@@ -63,6 +63,8 @@ def _candidate_confidence_report(
     errors_by_band: dict[str, list[float]],
     interval_hits_by_band: Counter[str],
     scores: list[int],
+    component_totals: Counter[str],
+    reason_counts: Counter[str],
 ) -> dict[str, object]:
     bands: dict[str, object] = {}
     maes: dict[str, float] = {}
@@ -93,12 +95,30 @@ def _candidate_confidence_report(
     return {
         "calibration_status": "uncalibrated",
         "mean_score": round(sum(scores) / len(scores), 3) if scores else None,
+        "score_p10": (
+            round(value, 3) if (value := _percentile(scores, 0.1)) is not None else None
+        ),
+        "score_p50": (
+            round(value, 3) if (value := _percentile(scores, 0.5)) is not None else None
+        ),
+        "score_p90": (
+            round(value, 3) if (value := _percentile(scores, 0.9)) is not None else None
+        ),
+        "mean_components": {
+            name: round(total / len(scores), 3)
+            for name, total in sorted(component_totals.items())
+        }
+        if scores
+        else {},
+        "reasons": dict(sorted(reason_counts.items())),
         "monotonic_mae": monotonic_mae,
         "bands": bands,
     }
 
 
-async def _anchors(conn: Any, args: argparse.Namespace) -> list[VehiclePosition]:
+async def _anchors(
+    conn: Any, args: argparse.Namespace
+) -> tuple[list[VehiclePosition], datetime]:
     anchor_end = getattr(args, "anchor_at", None)
     if anchor_end is None:
         anchor_end = datetime.now(UTC) - timedelta(minutes=args.anchor_age_minutes)
@@ -125,7 +145,7 @@ async def _anchors(conn: Any, args: argparse.Namespace) -> list[VehiclePosition]
         float(args.anchor_window_seconds),
         args.max_samples,
     )
-    return [VehiclePosition.model_validate(dict(row)) for row in rows]
+    return [VehiclePosition.model_validate(dict(row)) for row in rows], anchor_end
 
 
 async def _actual_arrival(
@@ -182,9 +202,11 @@ async def _run(
     confidence_errors: dict[str, list[float]] = defaultdict(list)
     confidence_interval_hits: Counter[str] = Counter()
     confidence_scores: list[int] = []
+    confidence_component_totals: Counter[str] = Counter()
+    confidence_reason_counts: Counter[str] = Counter()
     try:
         async with pool.acquire() as conn, conn.transaction(readonly=True):
-            anchors = await _anchors(conn, args)
+            anchors, anchor_end = await _anchors(conn, args)
             catalog = PostgresGtfsCatalog(
                 pool,
                 historical_profiles_enabled=not getattr(
@@ -196,7 +218,7 @@ async def _run(
                     position=position,
                     limit=1,
                     max_projection_distance_m=250,
-                    evaluated_at=position.observed_at,
+                    evaluated_at=anchor_end,
                 )
                 if not match.available:
                     reasons[str(match.unavailable_reason or "match_unavailable")] += 1
@@ -233,6 +255,8 @@ async def _run(
                 )
                 confidence_errors[confidence.band.value].append(absolute_error)
                 confidence_scores.append(confidence.score)
+                confidence_component_totals.update(confidence.components)
+                confidence_reason_counts.update(confidence.reasons)
                 actual_eta_seconds = (actual_arrival - position.observed_at).total_seconds()
                 interval_hit = (
                     stop.eta_lower_seconds is not None
@@ -275,6 +299,8 @@ async def _run(
             confidence_errors,
             confidence_interval_hits,
             confidence_scores,
+            confidence_component_totals,
+            confidence_reason_counts,
         ),
         "parameters": {
             "anchor_age_minutes": args.anchor_age_minutes,
@@ -285,6 +311,7 @@ async def _run(
             "anchor_at": (
                 args.anchor_at.isoformat() if getattr(args, "anchor_at", None) else None
             ),
+            "effective_anchor_at": anchor_end.isoformat(),
             "historical_profiles_enabled": not getattr(
                 args, "without_historical_profiles", False
             ),

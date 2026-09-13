@@ -149,9 +149,20 @@ def test_candidate_confidence_replay_reports_monotonic_error_bands() -> None:
         },
         Counter({"low": 1, "medium": 1, "high": 2}),
         [30, 40, 55, 65, 80, 90],
+        Counter(
+            {
+                "position_recency": 90,
+                "shape_projection": 60,
+                "evidence_method": 72,
+            }
+        ),
+        Counter({"fallback_speed_evidence": 3}),
     )
 
     assert report["calibration_status"] == "uncalibrated"
     assert report["monotonic_mae"] is True
     assert report["bands"]["high"]["mae_seconds"] == 20
     assert report["bands"]["high"]["interval_coverage"] == 1
+    assert report["score_p50"] == 60
+    assert report["mean_components"]["position_recency"] == 15
+    assert report["reasons"] == {"fallback_speed_evidence": 3}
