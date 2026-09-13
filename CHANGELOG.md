@@ -4,6 +4,10 @@
 
 ### Added
 
+- automated daily cold archive, independent full restore check, fail-closed
+  preflight and verified seven-day hot retention cycle;
+- low-priority systemd scheduling and explicit CPU/memory bounds for archive
+  maintenance on the shared ARM64 host;
 - outbound-only Cloudflare Tunnel deployment path that preserves TCP 443 for
   the shared Atualiza_materiais HTTPS API and requires its connector token
   through a file-backed Compose secret;
@@ -28,6 +32,9 @@
 
 ### Safety
 
+- retention remains unable to delete any day with a missing/corrupt remote
+  object, row-count drift, mixed-source partition or failed preflight, and never
+  removes the Object Storage copy;
 - edge services publish no host ports and remain disabled behind a Compose
   profile until a real hostname and protected token file pass preflight;
 - edge preflight rejects a direct `sshd` listener on TCP 443; the host-level

@@ -70,3 +70,25 @@ Não executar o worker `retention` se o soak não estiver aprovado, se houver um
 dia candidato sem archive/restore comprovado ou se o relatório do preflight não
 for o esperado. O preflight ignora a chave destrutiva e nunca chama a operação
 de exclusão.
+
+## Retenção automatizada aprovada
+
+Depois da aprovação explícita, produção usa `HOT_RETENTION_DAYS=7` e
+`DESTRUCTIVE_RETENTION_ENABLED=true`. O timer
+`transit-intelligence-verified-retention.timer` roda diariamente, em baixa
+prioridade, e executa obrigatoriamente esta sequência:
+
+1. arquiva o dia UTC anterior em Parquet no Object Storage;
+2. baixa o objeto completo e valida linhas, tamanho e SHA-256;
+3. executa o preflight de todas as partições candidatas;
+4. aborta se qualquer candidata estiver protegida;
+5. somente então chama o worker de retenção.
+
+O worker relê novamente cada objeto remoto imediatamente antes do `DROP`,
+compara a contagem do manifest com a partição e repete a contagem sob lock. O
+fluxo nunca remove objetos do bucket.
+
+```bash
+sudo systemctl status transit-intelligence-verified-retention.timer
+sudo journalctl -u transit-intelligence-verified-retention.service -n 100
+```

@@ -1,0 +1,17 @@
+[Unit]
+Description=Archive, restore-check and safely retain Transit Intelligence history
+Requires=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/apps/transit-intelligence
+ExecStart=/usr/bin/flock --nonblock /run/lock/transit-intelligence-verified-retention.lock /bin/bash infra/scripts/run_verified_retention_cycle.sh .env.production
+TimeoutStartSec=3h
+Nice=15
+IOSchedulingClass=idle
+CPUWeight=10
+IOWeight=10
+NoNewPrivileges=true

@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily verified cold archive and seven-day hot retention
+
+[Timer]
+OnCalendar=*-*-* 03:10:00 UTC
+RandomizedDelaySec=10min
+Persistent=true
+Unit=transit-intelligence-verified-retention.service
+
+[Install]
+WantedBy=timers.target

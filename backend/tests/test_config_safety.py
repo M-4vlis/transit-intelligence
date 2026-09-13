@@ -6,6 +6,7 @@ from app.core.config import Settings
 def test_destructive_retention_is_disabled_by_default() -> None:
     settings = Settings(_env_file=None)
     assert settings.destructive_retention_enabled is False
+    assert settings.hot_retention_days == 7
 
 
 def test_local_archive_cannot_authorize_destructive_retention() -> None:

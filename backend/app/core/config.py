@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     rio_realtime_max_response_bytes: int = Field(default=32 * 1024 * 1024, gt=0)
     source_timeout_seconds: float = Field(default=20.0, gt=0)
     live_position_ttl_seconds: int = 180
-    hot_retention_days: int = 2
+    hot_retention_days: int = 7
     archive_batch_size: int = 50_000
     archive_storage_kind: str = "local"
     archive_local_root: str = "/data/archive"

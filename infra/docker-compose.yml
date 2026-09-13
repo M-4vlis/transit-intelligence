@@ -117,7 +117,7 @@ services:
     environment:
       APP_ENV: development
       DATABASE_URL: postgresql://transit_app:${POSTGRES_PASSWORD:-local-dev-only}@postgres:5432/transit
-      HOT_RETENTION_DAYS: ${HOT_RETENTION_DAYS:-2}
+      HOT_RETENTION_DAYS: ${HOT_RETENTION_DAYS:-7}
       DESTRUCTIVE_RETENTION_ENABLED: ${DESTRUCTIVE_RETENTION_ENABLED:-false}
       ARCHIVE_STORAGE_KIND: ${ARCHIVE_STORAGE_KIND:-local}
       ARCHIVE_LOCAL_ROOT: /data/archive

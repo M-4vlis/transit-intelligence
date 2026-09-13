@@ -314,6 +314,8 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    mem_limit: 2g
+    cpus: 0.5
 
   retention:
     profiles: ["maintenance"]
@@ -324,7 +326,7 @@ services:
     command: ["python", "-m", "app.workers.retention"]
     environment:
       <<: *app-environment
-      HOT_RETENTION_DAYS: ${HOT_RETENTION_DAYS:-2}
+      HOT_RETENTION_DAYS: ${HOT_RETENTION_DAYS:-7}
       DESTRUCTIVE_RETENTION_ENABLED: ${DESTRUCTIVE_RETENTION_ENABLED:-false}
       ARCHIVE_STORAGE_KIND: ${ARCHIVE_STORAGE_KIND:-local}
       ARCHIVE_LOCAL_ROOT: ${ARCHIVE_LOCAL_ROOT:-/data/archive}
@@ -347,6 +349,8 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    mem_limit: 512m
+    cpus: 0.2
 
   retention-preflight:
     profiles: ["maintenance"]
@@ -357,7 +361,7 @@ services:
     command: ["python", "scripts/retention_preflight.py"]
     environment:
       <<: *app-environment
-      HOT_RETENTION_DAYS: ${HOT_RETENTION_DAYS:-2}
+      HOT_RETENTION_DAYS: ${HOT_RETENTION_DAYS:-7}
       ARCHIVE_STORAGE_KIND: ${ARCHIVE_STORAGE_KIND:-local}
       ARCHIVE_LOCAL_ROOT: ${ARCHIVE_LOCAL_ROOT:-/data/archive}
       ARCHIVE_S3_ENDPOINT: ${ARCHIVE_S3_ENDPOINT:-}
@@ -380,6 +384,8 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    mem_limit: 512m
+    cpus: 0.2
 
   object-store-smoke:
     profiles: ["maintenance"]
@@ -542,6 +548,8 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    mem_limit: 768m
+    cpus: 0.2
 
   rio-gtfs-canary:
     profiles: ["maintenance"]
