@@ -117,6 +117,28 @@ def _distance_diagnostics(values: list[float]) -> dict[str, int | float | None]:
     }
 
 
+def _speed_diagnostics(values: list[float]) -> dict[str, int | float | None]:
+    stopped_count = sum(value < 0.5 for value in values)
+    return {
+        "count": len(values),
+        "p50_mps": (
+            round(value, 3)
+            if (value := _percentile(values, 0.5)) is not None
+            else None
+        ),
+        "p90_mps": (
+            round(value, 3)
+            if (value := _percentile(values, 0.9)) is not None
+            else None
+        ),
+        "max_mps": round(max(values), 3) if values else None,
+        "stopped_below_0_5_mps_count": stopped_count,
+        "stopped_below_0_5_mps_rate": (
+            round(stopped_count / len(values), 4) if values else None
+        ),
+    }
+
+
 def _candidate_confidence_report(
     errors_by_band: dict[str, list[float]],
     interval_hits_by_band: Counter[str],
@@ -281,6 +303,7 @@ async def _run(
     interval_hits_by_match_method: Counter[str] = Counter()
     interval_hits_by_route: Counter[str] = Counter()
     excluded_projection_distances: dict[str, list[float]] = defaultdict(list)
+    excluded_speeds: dict[str, list[float]] = defaultdict(list)
     excluded_routes: Counter[tuple[str, str]] = Counter()
     try:
         async with pool.acquire() as conn, conn.transaction(readonly=True):
@@ -306,6 +329,8 @@ async def _run(
                         excluded_projection_distances[reason].append(
                             match.projection_distance_m
                         )
+                    if position.speed_mps is not None:
+                        excluded_speeds[reason].append(position.speed_mps)
                     continue
                 if match.eta_evidence is None:
                     reasons[str(match.eta_unavailable_reason or "eta_unavailable")] += 1
@@ -416,6 +441,10 @@ async def _run(
             "excluded_projection_distance_m": {
                 reason: _distance_diagnostics(values)
                 for reason, values in sorted(excluded_projection_distances.items())
+            },
+            "excluded_speed_mps": {
+                reason: _speed_diagnostics(values)
+                for reason, values in sorted(excluded_speeds.items())
             },
             "top_excluded_routes": [
                 {"reason": reason, "route_id": route_id, "count": count}

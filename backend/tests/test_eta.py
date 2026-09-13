@@ -19,6 +19,7 @@ from scripts.evaluate_eta_replay import (
     _error_diagnostics,
     _grouped_error_diagnostics,
     _percentile,
+    _speed_diagnostics,
 )
 from scripts.refresh_eta_segment_profiles import _aligned_window_end
 
@@ -119,6 +120,14 @@ def test_replay_grouped_diagnostics_are_stable_and_distance_is_summarized() -> N
         "p50_m": 300,
         "p90_m": 460,
         "max_m": 500,
+    }
+    assert _speed_diagnostics([0, 0.4, 2, 10]) == {
+        "count": 4,
+        "p50_mps": 1.2,
+        "p90_mps": 7.6,
+        "max_mps": 10,
+        "stopped_below_0_5_mps_count": 2,
+        "stopped_below_0_5_mps_rate": 0.5,
     }
 
 

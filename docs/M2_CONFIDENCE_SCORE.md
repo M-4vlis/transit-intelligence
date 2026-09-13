@@ -33,7 +33,9 @@ confiança depois que cada faixa demonstrar esse comportamento em chegadas reais
 O replay também registra cauda de erros acima de cinco minutos, viés, cobertura
 e métricas separadas por método de ETA, forma de casamento e linhas mais
 representadas. Distâncias de projeção dos veículos excluídos ajudam a distinguir
-GPS fora do trajeto de problemas no casamento com o GTFS.
+GPS fora do trajeto de problemas no casamento com o GTFS. A distribuição de
+velocidade dos excluídos ajuda a identificar veículos parados em garagens ou
+terminais sem relaxar o limite geométrico de segurança.
 
 As coortes usam uma amostra reproduzível por hash de veículo e instante da
 âncora. Isso distribui a avaliação pela frota e evita repetir os primeiros

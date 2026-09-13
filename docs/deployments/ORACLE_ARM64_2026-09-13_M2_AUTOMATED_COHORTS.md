@@ -43,6 +43,19 @@ a distância de projeção teve mediana de 1.331 metros e P90 de 7.206 metros. I
 indica problema de correspondência entre posição e shape, e não justifica elevar
 o limite atual de 250 metros sem investigar rota, sentido e versão do GTFS.
 
+A auditoria seguinte confirmou que o ZIP oficial disponível em 13 de setembro
+tem o mesmo SHA-256 do snapshot ativo. Também foi removido um viés do replay que
+limitava a amostra depois de ordenar os identificadores de veículo. A primeira
+coorte com amostragem determinística distribuída encontrou 43 chegadas em 200
+âncoras, contra 26 no lote anterior. Ainda houve 94 exclusões off-shape, agora
+com mediana de 2.353 metros; portanto, o problema não era apenas o viés de
+seleção.
+
+O resumo passou a contar para os gates somente coortes do método atual. No
+primeiro marco havia um dia independente, apenas a faixa noturna e 10/26/7
+resultados nas bandas alta/média/baixa. Nenhum gate de cobertura foi considerado
+concluído.
+
 ## Fonte ao vivo durante a mudança
 
 O ingestion worker continuou recebendo HTTP 200 da fonte oficial do Rio. Um lote
