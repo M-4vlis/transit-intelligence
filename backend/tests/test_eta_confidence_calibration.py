@@ -18,14 +18,19 @@ def _cohort(anchor: datetime, *, observations_per_band: int = 10) -> dict:
                     "absolute_error_seconds": abs(signed_error),
                     "predicted_eta_seconds": 120,
                     "actual_eta_seconds": 120 - signed_error,
-                    "eta_method": "vehicle_recent_speed",
+                    "eta_method": (
+                        "vehicle_recent_speed"
+                        if index % 2
+                        else "historical_segment_time_band"
+                    ),
                     "match_method": "exact_trip",
                     "route_id": f"route-{index}",
+                    "spatial_cell": f"cell-{index % 4}",
                 }
             )
     return {
         "evaluation_schema_version": 2,
-        "calibration_observation_schema_version": 1,
+        "calibration_observation_schema_version": 2,
         "parameters": {
             "effective_anchor_at": anchor.isoformat(),
             "sampling_method": "deterministic_vehicle_hash_v1",
@@ -46,6 +51,11 @@ def test_calibrator_fails_closed_without_independent_days() -> None:
         "all_dayparts": False,
         "minimum_50_outcomes_per_band": False,
         "maximum_single_route_share_20_percent": True,
+        "minimum_10_routes_per_band": False,
+        "maximum_single_route_share_20_percent_per_band": True,
+        "minimum_3_spatial_cells_per_band": False,
+        "maximum_single_spatial_cell_share_50_percent_per_band": True,
+        "maximum_single_eta_method_share_95_percent_per_band": True,
     }
 
 
@@ -85,6 +95,11 @@ def test_calibrator_uses_last_two_days_as_heldout_and_never_auto_promotes() -> N
         "lower_seconds": 10,
         "upper_seconds": 10,
     }
+    high_diversity = report["coverage"]["diversity_by_band"]["high"]
+    assert high_diversity["route_count"] == 10
+    assert high_diversity["spatial_cell_count"] == 4
+    assert high_diversity["maximum_single_route_share"] == 0.1
+    assert high_diversity["maximum_single_spatial_cell_share"] == 0.3
 
 
 def test_calibrator_ignores_legacy_or_non_deterministic_reports() -> None:
@@ -100,3 +115,34 @@ def test_calibrator_ignores_legacy_or_non_deterministic_reports() -> None:
 
     assert report["source"]["eligible_cohort_count"] == 0
     assert report["coverage"]["outcome_count"] == 0
+
+
+def test_calibrator_rejects_band_concentration() -> None:
+    start = datetime(2026, 9, 1, 10, tzinfo=UTC)
+    reports = [_cohort(start + timedelta(days=index)) for index in range(7)]
+    for report in reports:
+        for observation in report["calibration_observations"]:
+            if observation["candidate_band"] == "high":
+                observation["eta_method"] = "vehicle_recent_speed"
+                observation["spatial_cell"] = "single-cell"
+
+    calibration = build_calibration_report(
+        reports, generated_at=datetime(2026, 9, 8, tzinfo=UTC)
+    )
+
+    assert calibration["status"] == "insufficient_data"
+    assert (
+        calibration["gates"][
+            "maximum_single_spatial_cell_share_50_percent_per_band"
+        ]
+        is False
+    )
+    assert (
+        calibration["gates"][
+            "maximum_single_eta_method_share_95_percent_per_band"
+        ]
+        is False
+    )
+    high = calibration["coverage"]["diversity_by_band"]["high"]
+    assert high["maximum_single_spatial_cell_share"] == 1
+    assert high["maximum_single_eta_method_share"] == 1

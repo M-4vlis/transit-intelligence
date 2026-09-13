@@ -24,7 +24,15 @@ from app.modules.mobility.models import VehiclePosition
 from app.modules.mobility.operational_status import classify_unmatched_vehicle
 
 EVALUATION_SCHEMA_VERSION = 2
-CALIBRATION_OBSERVATION_SCHEMA_VERSION = 1
+CALIBRATION_OBSERVATION_SCHEMA_VERSION = 2
+_CALIBRATION_SPATIAL_GRID_DEGREES = 0.025
+
+
+def _calibration_spatial_cell(*, latitude: float, longitude: float) -> str:
+    """Return a coarse, stable cell without retaining an exact stop position."""
+    latitude_cell = floor((latitude + 90.0) / _CALIBRATION_SPATIAL_GRID_DEGREES)
+    longitude_cell = floor((longitude + 180.0) / _CALIBRATION_SPATIAL_GRID_DEGREES)
+    return f"{latitude_cell}:{longitude_cell}"
 
 
 def _parse_args() -> argparse.Namespace:
@@ -419,6 +427,10 @@ async def _run(
                         "eta_method": method,
                         "match_method": match_method,
                         "route_id": position.route_id,
+                        "spatial_cell": _calibration_spatial_cell(
+                            latitude=stop.latitude,
+                            longitude=stop.longitude,
+                        ),
                         "position_age_seconds": round(
                             float(match.position_age_seconds or 0), 3
                         ),
@@ -450,6 +462,7 @@ async def _run(
         "calibration_observation_schema_version": (
             CALIBRATION_OBSERVATION_SCHEMA_VERSION
         ),
+        "calibration_spatial_grid_degrees": _CALIBRATION_SPATIAL_GRID_DEGREES,
         "shadow_confidence_contract_version": SHADOW_CONFIDENCE_CONTRACT_VERSION,
         "status": (
             "sufficient_data" if outcome_count >= args.min_outcomes else "insufficient_data"

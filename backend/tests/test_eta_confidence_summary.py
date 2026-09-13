@@ -62,6 +62,7 @@ def test_confidence_summary_deduplicates_anchors_and_weights_metrics() -> None:
     assert summary["calibration_coverage"] == {
         "sampling_method": "deterministic_vehicle_hash_v1",
         "evaluation_schema_version": 2,
+        "observation_schema_version": 2,
         "cohort_count": 0,
         "local_dates": [],
         "independent_day_count": 0,
@@ -126,6 +127,7 @@ def test_confidence_summary_tracks_rio_dayparts_for_current_sampling() -> None:
             "deterministic_vehicle_hash_v1"
         )
         report["evaluation_schema_version"] = 2
+        report["calibration_observation_schema_version"] = 2
         reports.append(report)
 
     summary = summarize_reports(

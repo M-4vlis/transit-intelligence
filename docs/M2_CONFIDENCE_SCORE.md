@@ -30,6 +30,14 @@ confiança depois que cada faixa demonstrar esse comportamento em chegadas reais
 - [ ] verificar que uma linha, região ou método não domina artificialmente uma
   faixa.
 
+A observação de calibração schema 2 acrescenta somente uma célula espacial
+grossa de aproximadamente 2,5 km, sem coordenada exata. O calibrador mede, em
+cada faixa, quantidade e maior participação de linhas, células e métodos. Uma
+faixa fica bloqueada se tiver menos de dez linhas, menos de três células, mais
+de 20% em uma linha, mais de 50% em uma célula ou mais de 95% em um método.
+Relatórios schema 1 continuam preservados, mas não são misturados nesta nova
+calibração.
+
 O replay também registra cauda de erros acima de cinco minutos, viés, cobertura
 e métricas separadas por método de ETA, forma de casamento e linhas mais
 representadas. Distâncias de projeção dos veículos excluídos ajudam a distinguir

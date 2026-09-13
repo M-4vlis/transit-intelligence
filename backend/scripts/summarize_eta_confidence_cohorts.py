@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 _BANDS = ("high", "medium", "low")
 _CURRENT_SAMPLING_METHOD = "deterministic_vehicle_hash_v1"
 _CURRENT_EVALUATION_SCHEMA_VERSION = 2
+_CURRENT_OBSERVATION_SCHEMA_VERSION = 2
 _RIO_TZ = ZoneInfo("America/Sao_Paulo")
 
 
@@ -62,6 +63,8 @@ def summarize_reports(
         is_current_sample = (
             sampling_method == _CURRENT_SAMPLING_METHOD
             and evaluation_schema_version == _CURRENT_EVALUATION_SCHEMA_VERSION
+            and report.get("calibration_observation_schema_version")
+            == _CURRENT_OBSERVATION_SCHEMA_VERSION
         )
         if is_current_sample:
             calibration_cohort_count += 1
@@ -118,6 +121,7 @@ def summarize_reports(
     calibration_coverage = {
         "sampling_method": _CURRENT_SAMPLING_METHOD,
         "evaluation_schema_version": _CURRENT_EVALUATION_SCHEMA_VERSION,
+        "observation_schema_version": _CURRENT_OBSERVATION_SCHEMA_VERSION,
         "cohort_count": calibration_cohort_count,
         "local_dates": sorted(calibration_dates),
         "independent_day_count": len(calibration_dates),

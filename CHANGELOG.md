@@ -1,9 +1,13 @@
 # Changelog
 
-## Unreleased — M1
+## Unreleased — M2
 
 ### Added
 
+- per-confidence-band diversity gates for route, coarse spatial cell and ETA
+  method concentration, backed by calibration observation schema 2;
+- privacy-preserving 0.025-degree spatial cells in private replay evidence so
+  regional bias can be measured without storing exact coordinates;
 - automated daily cold archive, independent full restore check, fail-closed
   preflight and verified seven-day hot retention cycle;
 - low-priority systemd scheduling and explicit CPU/memory bounds for archive

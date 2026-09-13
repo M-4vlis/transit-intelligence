@@ -12,8 +12,13 @@ from zoneinfo import ZoneInfo
 _BANDS = ("high", "medium", "low")
 _SAMPLING_METHOD = "deterministic_vehicle_hash_v1"
 _EVALUATION_SCHEMA_VERSION = 2
-_OBSERVATION_SCHEMA_VERSION = 1
+_OBSERVATION_SCHEMA_VERSION = 2
 _RIO_TZ = ZoneInfo("America/Sao_Paulo")
+_MAXIMUM_ROUTE_SHARE = 0.20
+_MAXIMUM_SPATIAL_CELL_SHARE = 0.50
+_MAXIMUM_ETA_METHOD_SHARE = 0.95
+_MINIMUM_ROUTES_PER_BAND = 10
+_MINIMUM_SPATIAL_CELLS_PER_BAND = 3
 
 
 def _percentile(values: list[float], quantile: float) -> float | None:
@@ -97,6 +102,34 @@ def _band_metrics(observations: list[dict[str, Any]]) -> dict[str, object]:
     }
 
 
+def _share(counts: Counter[str], total: int) -> float:
+    return max(counts.values(), default=0) / total if total else 0
+
+
+def _band_diversity(observations: list[dict[str, Any]]) -> dict[str, object]:
+    total = len(observations)
+    routes = Counter(str(item.get("route_id")) for item in observations)
+    spatial_cells = Counter(str(item.get("spatial_cell")) for item in observations)
+    methods = Counter(str(item.get("eta_method")) for item in observations)
+    return {
+        "outcome_count": total,
+        "route_count": len(routes),
+        "spatial_cell_count": len(spatial_cells),
+        "eta_method_count": len(methods),
+        "maximum_single_route_share": round(_share(routes, total), 4),
+        "maximum_single_spatial_cell_share": round(
+            _share(spatial_cells, total), 4
+        ),
+        "maximum_single_eta_method_share": round(_share(methods, total), 4),
+        "eta_method_shares": {
+            name: round(count / total, 4)
+            for name, count in sorted(methods.items())
+        }
+        if total
+        else {},
+    }
+
+
 def build_calibration_report(
     reports: list[dict[str, Any]], *, generated_at: datetime
 ) -> dict[str, object]:
@@ -109,12 +142,43 @@ def build_calibration_report(
     routes = Counter(str(item.get("route_id")) for _, _, item in observations)
     outcome_count = len(observations)
     maximum_route_share = max(routes.values(), default=0) / outcome_count if outcome_count else 0
+    observations_by_band = {
+        band: [item for _, _, item in observations if item.get("candidate_band") == band]
+        for band in _BANDS
+    }
+    diversity_by_band = {
+        band: _band_diversity(observations_by_band[band]) for band in _BANDS
+    }
     all_dayparts = {"morning_peak", "interpeak", "evening_peak", "night"}
     gates = {
         "seven_independent_days": len(dates) >= 7,
         "all_dayparts": all(dayparts[name] > 0 for name in all_dayparts),
         "minimum_50_outcomes_per_band": all(bands[band] >= 50 for band in _BANDS),
         "maximum_single_route_share_20_percent": maximum_route_share <= 0.2,
+        "minimum_10_routes_per_band": all(
+            int(diversity_by_band[band]["route_count"]) >= _MINIMUM_ROUTES_PER_BAND
+            for band in _BANDS
+        ),
+        "maximum_single_route_share_20_percent_per_band": all(
+            float(diversity_by_band[band]["maximum_single_route_share"])
+            <= _MAXIMUM_ROUTE_SHARE
+            for band in _BANDS
+        ),
+        "minimum_3_spatial_cells_per_band": all(
+            int(diversity_by_band[band]["spatial_cell_count"])
+            >= _MINIMUM_SPATIAL_CELLS_PER_BAND
+            for band in _BANDS
+        ),
+        "maximum_single_spatial_cell_share_50_percent_per_band": all(
+            float(diversity_by_band[band]["maximum_single_spatial_cell_share"])
+            <= _MAXIMUM_SPATIAL_CELL_SHARE
+            for band in _BANDS
+        ),
+        "maximum_single_eta_method_share_95_percent_per_band": all(
+            float(diversity_by_band[band]["maximum_single_eta_method_share"])
+            <= _MAXIMUM_ETA_METHOD_SHARE
+            for band in _BANDS
+        ),
     }
     result: dict[str, object] = {
         "schema_version": 1,
@@ -138,6 +202,7 @@ def build_calibration_report(
             "eta_methods": dict(sorted(methods.items())),
             "route_count": len(routes),
             "maximum_single_route_share": round(maximum_route_share, 4),
+            "diversity_by_band": diversity_by_band,
         },
         "gates": gates,
         "calibration_candidate": None,
