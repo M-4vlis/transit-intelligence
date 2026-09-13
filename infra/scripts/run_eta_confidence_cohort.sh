@@ -17,10 +17,12 @@ fi
 run_id="$(date -u +%Y%m%dT%H%M%SZ)"
 report="$REPORT_DIR/cohort-$run_id.json"
 summary="$REPORT_DIR/summary-$run_id.json"
+calibration="$REPORT_DIR/calibration-$run_id.json"
 report_tmp="$(mktemp "$REPORT_DIR/.cohort-$run_id.XXXXXX")"
 summary_tmp="$(mktemp "$REPORT_DIR/.summary-$run_id.XXXXXX")"
+calibration_tmp="$(mktemp "$REPORT_DIR/.calibration-$run_id.XXXXXX")"
 cleanup() {
-  rm -f -- "$report_tmp" "$summary_tmp"
+  rm -f -- "$report_tmp" "$summary_tmp" "$calibration_tmp"
 }
 trap cleanup EXIT
 
@@ -47,5 +49,11 @@ mv "$summary_tmp" "$summary"
 sha256sum "$summary" >>"$REPORT_DIR/SHA256SUMS"
 ln -sfn "$(basename "$summary")" "$REPORT_DIR/summary-latest.json"
 
-printf 'TRANSIT_ETA_CONFIDENCE_COHORT_OK report=%s summary=%s\n' \
-  "$report" "$summary"
+python3 backend/scripts/calibrate_eta_confidence.py \
+  --reports-dir "$REPORT_DIR" >"$calibration_tmp"
+mv "$calibration_tmp" "$calibration"
+sha256sum "$calibration" >>"$REPORT_DIR/SHA256SUMS"
+ln -sfn "$(basename "$calibration")" "$REPORT_DIR/calibration-latest.json"
+
+printf 'TRANSIT_ETA_CONFIDENCE_COHORT_OK report=%s summary=%s calibration=%s\n' \
+  "$report" "$summary" "$calibration"

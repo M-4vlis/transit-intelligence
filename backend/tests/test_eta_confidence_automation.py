@@ -29,6 +29,8 @@ def test_cohort_script_is_concurrent_safe_and_keeps_audit_artifacts() -> None:
     assert 'sha256sum "$report"' in script
     assert 'sha256sum "$summary"' in script
     assert "summary-latest.json" in script
+    assert 'sha256sum "$calibration"' in script
+    assert "calibration-latest.json" in script
 
 
 def test_cohort_timer_is_persistent_and_runs_across_the_day() -> None:

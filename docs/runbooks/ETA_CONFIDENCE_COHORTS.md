@@ -28,6 +28,12 @@ Cada execução cria um `cohort-<UTC>.json`, um `summary-<UTC>.json`, atualiza o
 link `summary-latest.json` e acrescenta os SHA-256 ao arquivo `SHA256SUMS`.
 Coortes são deduplicadas pelo instante efetivo da âncora ao gerar o resumo.
 
+Também cria `calibration-<UTC>.json` e atualiza `calibration-latest.json`. Esse
+relatório permanece `insufficient_data` até satisfazer dias, faixas horárias,
+volume por banda, diversidade de rotas e holdout. Mesmo depois disso, o máximo
+que pode retornar é `candidate_for_manual_review`; promoção automática é
+proibida.
+
 ## Operação
 
 ```bash
@@ -35,6 +41,7 @@ sudo systemctl status transit-intelligence-eta-confidence-cohort.timer
 systemctl list-timers transit-intelligence-eta-confidence-cohort.timer
 sudo journalctl -u transit-intelligence-eta-confidence-cohort.service -n 50
 cat /home/ubuntu/artifacts/transit-intelligence/confidence-cohorts/summary-latest.json
+cat /home/ubuntu/artifacts/transit-intelligence/confidence-cohorts/calibration-latest.json
 ```
 
 Execução manual segura:

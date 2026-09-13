@@ -386,6 +386,7 @@ async def test_eta_replay_compares_prediction_with_future_gps(tmp_path: Path) ->
         )
 
         assert report["status"] == "sufficient_data"
+        assert report["evaluation_schema_version"] == 2
         assert report["anchor_count"] == 1
         assert report["outcome_count"] == 1
         assert report["mae_seconds"] is not None
@@ -401,6 +402,12 @@ async def test_eta_replay_compares_prediction_with_future_gps(tmp_path: Path) ->
         assert report["parameters"]["sampling_method"] == (
             "deterministic_vehicle_hash_v1"
         )
+        observation = report["calibration_observations"][0]
+        assert observation["predicted_eta_seconds"] >= 0
+        assert observation["actual_eta_seconds"] >= 0
+        assert "vehicle_id" not in observation
+        assert "trip_id" not in observation
+        assert "stop_id" not in observation
     finally:
         await pool.close()
 

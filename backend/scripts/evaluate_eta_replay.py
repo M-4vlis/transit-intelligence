@@ -18,6 +18,9 @@ from app.modules.mobility.confidence import (
 )
 from app.modules.mobility.models import VehiclePosition
 
+EVALUATION_SCHEMA_VERSION = 2
+CALIBRATION_OBSERVATION_SCHEMA_VERSION = 1
+
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Evaluate ETA V0 against later GPS arrivals")
@@ -244,6 +247,7 @@ async def _actual_arrival(
     conn: Any,
     *,
     position: VehiclePosition,
+    evaluated_at: datetime,
     stop_latitude: float,
     stop_longitude: float,
     horizon_minutes: int,
@@ -271,7 +275,7 @@ async def _actual_arrival(
         position.agency_id,
         position.vehicle_id,
         position.route_id,
-        position.observed_at,
+        evaluated_at,
         float(horizon_minutes),
         stop_latitude,
         stop_longitude,
@@ -305,6 +309,7 @@ async def _run(
     excluded_projection_distances: dict[str, list[float]] = defaultdict(list)
     excluded_speeds: dict[str, list[float]] = defaultdict(list)
     excluded_routes: Counter[tuple[str, str]] = Counter()
+    calibration_observations: list[dict[str, object]] = []
     try:
         async with pool.acquire() as conn, conn.transaction(readonly=True):
             anchors, anchor_end = await _anchors(conn, args)
@@ -342,6 +347,7 @@ async def _run(
                 actual_arrival = await _actual_arrival(
                     conn,
                     position=position,
+                    evaluated_at=anchor_end,
                     stop_latitude=stop.latitude,
                     stop_longitude=stop.longitude,
                     horizon_minutes=args.outcome_horizon_minutes,
@@ -354,7 +360,9 @@ async def _run(
                 match_method = str(match.match_method or "unknown")
                 methods[method] += 1
                 match_methods[match_method] += 1
-                signed_error = (stop.estimated_arrival_at - actual_arrival).total_seconds()
+                actual_eta_seconds = (actual_arrival - anchor_end).total_seconds()
+                predicted_eta_seconds = float(stop.eta_seconds or 0)
+                signed_error = predicted_eta_seconds - actual_eta_seconds
                 signed_errors.append(signed_error)
                 absolute_error = abs(signed_error)
                 errors.append(absolute_error)
@@ -371,13 +379,41 @@ async def _run(
                 confidence_scores.append(confidence.score)
                 confidence_component_totals.update(confidence.components)
                 confidence_reason_counts.update(confidence.reasons)
-                actual_eta_seconds = (actual_arrival - position.observed_at).total_seconds()
                 interval_hit = (
                     stop.eta_lower_seconds is not None
                     and stop.eta_upper_seconds is not None
                     and stop.eta_lower_seconds
                     <= actual_eta_seconds
                     <= stop.eta_upper_seconds
+                )
+                calibration_observations.append(
+                    {
+                        "score": confidence.score,
+                        "candidate_band": confidence.band.value,
+                        "signed_error_seconds": round(signed_error, 3),
+                        "absolute_error_seconds": round(absolute_error, 3),
+                        "predicted_eta_seconds": round(predicted_eta_seconds, 3),
+                        "actual_eta_seconds": round(actual_eta_seconds, 3),
+                        "eta_lower_seconds": stop.eta_lower_seconds,
+                        "eta_upper_seconds": stop.eta_upper_seconds,
+                        "interval_hit": interval_hit,
+                        "eta_method": method,
+                        "match_method": match_method,
+                        "route_id": position.route_id,
+                        "position_age_seconds": round(
+                            float(match.position_age_seconds or 0), 3
+                        ),
+                        "projection_distance_m": round(
+                            float(match.projection_distance_m or 0), 3
+                        ),
+                        "shape_distance_ahead_m": round(
+                            float(stop.shape_distance_ahead), 3
+                        ),
+                        "evidence_sample_count": match.eta_evidence.sample_count,
+                        "evidence_window_seconds": match.eta_evidence.window_seconds,
+                        "confidence_components": confidence.components,
+                        "confidence_reasons": list(confidence.reasons),
+                    }
                 )
                 if interval_hit:
                     interval_hits += 1
@@ -390,6 +426,10 @@ async def _run(
 
     outcome_count = len(errors)
     return {
+        "evaluation_schema_version": EVALUATION_SCHEMA_VERSION,
+        "calibration_observation_schema_version": (
+            CALIBRATION_OBSERVATION_SCHEMA_VERSION
+        ),
         "status": (
             "sufficient_data" if outcome_count >= args.min_outcomes else "insufficient_data"
         ),
@@ -461,6 +501,7 @@ async def _run(
             confidence_component_totals,
             confidence_reason_counts,
         ),
+        "calibration_observations": calibration_observations,
         "parameters": {
             "anchor_age_minutes": args.anchor_age_minutes,
             "anchor_window_seconds": args.anchor_window_seconds,

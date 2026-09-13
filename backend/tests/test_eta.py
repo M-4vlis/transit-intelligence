@@ -62,6 +62,29 @@ def test_geometric_eta_uses_speed_percentiles_and_position_age() -> None:
     assert result.eta_unavailable_reason is None
 
 
+def test_geometric_eta_never_returns_an_arrival_before_evaluation_time() -> None:
+    observed_at = datetime(2026, 9, 12, 12, tzinfo=UTC)
+    evaluated_at = observed_at + timedelta(seconds=30)
+    evidence = EtaEvidence(
+        method=EtaMethod.VEHICLE_RECENT_SPEED,
+        sample_count=5,
+        window_seconds=300,
+        speed_p25_mps=4,
+        speed_median_mps=5,
+        speed_p75_mps=10,
+    )
+
+    result = estimate_stop_arrivals(
+        (_stop(100),),
+        evidence=evidence,
+        observed_at=observed_at,
+        evaluated_at=evaluated_at,
+    )[0]
+
+    assert result.eta_seconds == 0
+    assert result.estimated_arrival_at == evaluated_at
+
+
 def test_geometric_eta_rejects_unbounded_distance() -> None:
     observed_at = datetime(2026, 9, 12, 12, tzinfo=UTC)
     evidence = EtaEvidence(

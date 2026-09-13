@@ -41,6 +41,12 @@ As coortes usam uma amostra reproduzível por hash de veículo e instante da
 âncora. Isso distribui a avaliação pela frota e evita repetir os primeiros
 identificadores em ordem lexicográfica.
 
+Somente relatórios com a base temporal corrigida (`evaluation_schema_version=2`)
+podem alimentar a calibração. Cada resultado elegível preserva score, erro,
+intervalo, método e fatores técnicos, mas omite veículo, viagem, shape e parada.
+O calibrador offline separa os dois dias mais recentes como holdout e nunca
+autoriza promoção automática.
+
 ### M2.2 — Contrato público
 
 - [ ] congelar versão do algoritmo e limites calibrados;

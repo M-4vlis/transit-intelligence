@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 
 _BANDS = ("high", "medium", "low")
 _CURRENT_SAMPLING_METHOD = "deterministic_vehicle_hash_v1"
+_CURRENT_EVALUATION_SCHEMA_VERSION = 2
 _RIO_TZ = ZoneInfo("America/Sao_Paulo")
 
 
@@ -40,6 +41,7 @@ def summarize_reports(
     }
     versions: set[str] = set()
     sampling_methods: set[str] = set()
+    evaluation_schema_versions: Counter[str] = Counter()
     statuses: Counter[str] = Counter()
     excluded_reasons: Counter[str] = Counter()
     diagnostic_outcomes = 0
@@ -52,10 +54,15 @@ def summarize_reports(
     calibration_cohort_count = 0
     for anchor_text, report in ordered:
         statuses[str(report.get("status", "unknown"))] += 1
+        evaluation_schema_version = int(report.get("evaluation_schema_version") or 1)
+        evaluation_schema_versions[str(evaluation_schema_version)] += 1
         sampling_method = report.get("parameters", {}).get("sampling_method")
         if isinstance(sampling_method, str):
             sampling_methods.add(sampling_method)
-        is_current_sample = sampling_method == _CURRENT_SAMPLING_METHOD
+        is_current_sample = (
+            sampling_method == _CURRENT_SAMPLING_METHOD
+            and evaluation_schema_version == _CURRENT_EVALUATION_SCHEMA_VERSION
+        )
         if is_current_sample:
             calibration_cohort_count += 1
             anchor = datetime.fromisoformat(anchor_text)
@@ -110,6 +117,7 @@ def summarize_reports(
     all_dayparts = {"morning_peak", "interpeak", "evening_peak", "night"}
     calibration_coverage = {
         "sampling_method": _CURRENT_SAMPLING_METHOD,
+        "evaluation_schema_version": _CURRENT_EVALUATION_SCHEMA_VERSION,
         "cohort_count": calibration_cohort_count,
         "local_dates": sorted(calibration_dates),
         "independent_day_count": len(calibration_dates),
@@ -135,6 +143,7 @@ def summarize_reports(
         "last_anchor_at": ordered[-1][0] if ordered else None,
         "candidate_versions": sorted(versions),
         "sampling_methods": sorted(sampling_methods),
+        "evaluation_schema_versions": dict(sorted(evaluation_schema_versions.items())),
         "statuses": dict(sorted(statuses.items())),
         "excluded_reasons": dict(sorted(excluded_reasons.items())),
         "total_outcomes": sum(
