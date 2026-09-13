@@ -21,6 +21,7 @@ from app.modules.mobility.confidence_contract import (
     build_shadow_confidence_contract,
 )
 from app.modules.mobility.models import VehiclePosition
+from app.modules.mobility.operational_status import classify_unmatched_vehicle
 
 EVALUATION_SCHEMA_VERSION = 2
 CALIBRATION_OBSERVATION_SCHEMA_VERSION = 1
@@ -313,6 +314,7 @@ async def _run(
     excluded_projection_distances: dict[str, list[float]] = defaultdict(list)
     excluded_speeds: dict[str, list[float]] = defaultdict(list)
     excluded_routes: Counter[tuple[str, str]] = Counter()
+    operational_classifications: Counter[str] = Counter()
     calibration_observations: list[dict[str, object]] = []
     try:
         async with pool.acquire() as conn, conn.transaction(readonly=True):
@@ -340,6 +342,12 @@ async def _run(
                         )
                     if position.speed_mps is not None:
                         excluded_speeds[reason].append(position.speed_mps)
+                    operational = classify_unmatched_vehicle(
+                        unavailable_reason=match.unavailable_reason,
+                        projection_distance_m=match.projection_distance_m,
+                        speed_mps=position.speed_mps,
+                    )
+                    operational_classifications[operational.classification.value] += 1
                     continue
                 if match.eta_evidence is None:
                     reasons[str(match.eta_unavailable_reason or "eta_unavailable")] += 1
@@ -506,6 +514,9 @@ async def _run(
                     key=lambda item: (-item[1], item[0]),
                 )[:10]
             ],
+            "excluded_operational_classifications": dict(
+                sorted(operational_classifications.items())
+            ),
         },
         "candidate_confidence": _candidate_confidence_report(
             confidence_errors,
