@@ -93,7 +93,7 @@ def _load_state(path: Path) -> dict[str, Any]:
 
 
 def _evidence_files(directory: Path) -> list[Path]:
-    prefixes = ("cohort-", "summary-", "calibration-")
+    prefixes = ("cohort-", "summary-", "calibration-", "readiness-")
     return sorted(
         path
         for path in directory.iterdir()

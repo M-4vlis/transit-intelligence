@@ -78,6 +78,7 @@ alarme.
 
 ```bash
 cat /home/ubuntu/artifacts/transit-intelligence/confidence-cohorts/operations-latest.json
+cat /home/ubuntu/artifacts/transit-intelligence/confidence-cohorts/readiness-latest.json
 sudo systemctl status transit-intelligence-eta-confidence-monitor.timer
 sudo journalctl -u transit-intelligence-eta-confidence-monitor.service -n 50
 ```

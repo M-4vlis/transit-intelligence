@@ -36,6 +36,7 @@ MONITOR_SERVICE = (
 MONITOR_TIMER = (
     ROOT / "infra" / "systemd" / "transit-intelligence-eta-confidence-monitor.timer"
 )
+READINESS_SCRIPT = ROOT / "infra" / "scripts" / "build_m2_readiness_report.sh"
 
 
 def test_cohort_script_is_concurrent_safe_and_keeps_audit_artifacts() -> None:
@@ -125,3 +126,15 @@ def test_confidence_monitor_is_frequent_persistent_and_records_failures() -> Non
     assert "User=ubuntu" in service
     assert "Nice=15" in service
     assert "NoNewPrivileges=true" in service
+
+
+def test_cohort_builds_and_archives_guarded_readiness_report() -> None:
+    cohort = SCRIPT.read_text(encoding="utf-8")
+    readiness = READINESS_SCRIPT.read_text(encoding="utf-8")
+
+    assert "monitor_eta_confidence_operations.sh" in cohort
+    assert "build_m2_readiness_report.sh" in cohort
+    assert cohort.count("run --rm -T confidence-evidence-archive") == 2
+    assert "readiness-latest.json" in readiness
+    assert 'sha256sum "$report"' in readiness
+    assert 'd["promotion_authorized"] is False' in readiness

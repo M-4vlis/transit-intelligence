@@ -61,5 +61,22 @@ docker compose \
   --profile maintenance \
   run --rm -T confidence-evidence-archive
 
+set +e
+"$ROOT_DIR/infra/scripts/monitor_eta_confidence_operations.sh"
+monitor_result=$?
+set -e
+"$ROOT_DIR/infra/scripts/build_m2_readiness_report.sh" "$run_id"
+
+docker compose \
+  --env-file "$ENV_FILE" \
+  -f "$COMPOSE_FILE" \
+  --profile maintenance \
+  run --rm -T confidence-evidence-archive
+
+if [[ "$monitor_result" -ne 0 ]]; then
+  printf 'TRANSIT_ETA_CONFIDENCE_MONITOR_FAILED status=%s\n' "$monitor_result" >&2
+  exit "$monitor_result"
+fi
+
 printf 'TRANSIT_ETA_CONFIDENCE_COHORT_OK report=%s summary=%s calibration=%s\n' \
   "$report" "$summary" "$calibration"

@@ -51,6 +51,11 @@ O contrato `m2-shadow-v1` já materializa, somente nas observações privadas, o
 nível candidato, a janela de chegada e os motivos explicáveis. Ele traz
 `publishable=false` por construção e não faz parte do schema da API pública.
 
+Cada coorte gera ainda um `readiness-<UTC>.json`, com checksum e cópia no Object
+Storage. O relatório combina cobertura, holdout, monotonicidade, cobertura dos
+intervalos, saúde operacional e completude do backup. Seu melhor estado possível
+é `candidate_for_manual_review`; `promotion_authorized` permanece sempre falso.
+
 ### M2.2 — Contrato público
 
 - [ ] congelar versão do algoritmo e limites calibrados;
