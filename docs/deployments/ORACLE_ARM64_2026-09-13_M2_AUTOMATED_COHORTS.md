@@ -56,6 +56,16 @@ primeiro marco havia um dia independente, apenas a faixa noturna e 10/26/7
 resultados nas bandas alta/média/baixa. Nenhum gate de cobertura foi considerado
 concluído.
 
+Uma coorte noturna adicional mediu a velocidade dos 94 veículos off-shape: 77
+(81,9%) estavam abaixo de 0,5 m/s, com velocidade mediana zero. A evidência é
+compatível com veículos parados em garagem ou terminal enquanto ainda carregam
+a última associação de linha. O limite geométrico permaneceu inalterado; coortes
+diurnas serão usadas para confirmar se o padrão desaparece durante a operação.
+
+Ao fim desta etapa havia 11 coortes, 650 chegadas observadas e 96 KiB de
+artefatos. Somente 2 coortes, ambas noturnas e do mesmo dia local, usam a nova
+amostragem e contam para os gates de calibração.
+
 ## Fonte ao vivo durante a mudança
 
 O ingestion worker continuou recebendo HTTP 200 da fonte oficial do Rio. Um lote
