@@ -128,6 +128,7 @@ def test_confidence_monitor_is_frequent_persistent_and_records_failures() -> Non
     assert "transit-intelligence-eta-confidence-cohort.service" in script
     assert "transit-intelligence-confidence-evidence-restore.service" in script
     assert "transit-intelligence-m2-resource-budget.service" in script
+    assert "transit-intelligence-verified-retention.service" in script
     assert "OnCalendar=*:0/30" in timer
     assert "Persistent=true" in timer
     assert "User=ubuntu" in service

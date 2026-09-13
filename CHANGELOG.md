@@ -8,6 +8,8 @@
   preflight and verified seven-day hot retention cycle;
 - low-priority systemd scheduling and explicit CPU/memory bounds for archive
   maintenance on the shared ARM64 host;
+- retention service failure reporting in the existing 30-minute operations
+  monitor;
 - outbound-only Cloudflare Tunnel deployment path that preserves TCP 443 for
   the shared Atualiza_materiais HTTPS API and requires its connector token
   through a file-backed Compose secret;
