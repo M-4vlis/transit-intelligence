@@ -52,6 +52,11 @@ continuar além desses marcos. O candidato só poderá ser publicado quando as
 faixas forem monotônicas em dados independentes e os intervalos estiverem
 calibrados. O volume de amostras, isoladamente, não autoriza promoção.
 
+O bloco `calibration_coverage` do resumo acompanha automaticamente dias locais,
+faixas do dia e o mínimo de 50 resultados por banda usando apenas a amostragem
+determinística atual. Coortes exploratórias antigas continuam no histórico, mas
+não contam para esses gates.
+
 ## Interrupção reversível
 
 ```bash

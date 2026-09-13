@@ -58,6 +58,22 @@ def test_confidence_summary_deduplicates_anchors_and_weights_metrics() -> None:
     assert summary["monotonic_cohorts"] == {"passed": 1, "evaluated": 2}
     assert summary["candidate_versions"] == ["m2-candidate-v2"]
     assert summary["sampling_methods"] == []
+    assert summary["calibration_coverage"] == {
+        "sampling_method": "deterministic_vehicle_hash_v1",
+        "cohort_count": 0,
+        "local_dates": [],
+        "independent_day_count": 0,
+        "daypart_cohorts": {
+            "evening_peak": 0,
+            "interpeak": 0,
+            "morning_peak": 0,
+            "night": 0,
+        },
+        "band_outcomes": {"high": 0, "medium": 0, "low": 0},
+        "seven_day_coverage_met": False,
+        "all_dayparts_met": False,
+        "minimum_50_outcomes_per_band_met": False,
+    }
 
 
 def test_confidence_summary_accumulates_exclusions_and_extreme_errors() -> None:
@@ -86,3 +102,42 @@ def test_confidence_summary_accumulates_exclusions_and_extreme_errors() -> None:
         "error_over_300_seconds_count": 7,
         "error_over_300_seconds_rate": 0.2,
     }
+
+
+def test_confidence_summary_tracks_rio_dayparts_for_current_sampling() -> None:
+    anchors = (
+        "2026-09-13T10:00:00+00:00",
+        "2026-09-13T15:00:00+00:00",
+        "2026-09-13T20:00:00+00:00",
+        "2026-09-15T02:00:00+00:00",
+    )
+    reports = []
+    for anchor in anchors:
+        report = _report(
+            anchor,
+            high=(20, 20, 0.8),
+            medium=(20, 40, 0.6),
+            low=(20, 100, 0.2),
+            monotonic=True,
+        )
+        report["parameters"]["sampling_method"] = (
+            "deterministic_vehicle_hash_v1"
+        )
+        reports.append(report)
+
+    summary = summarize_reports(
+        reports, generated_at=datetime(2026, 9, 14, 3, tzinfo=UTC)
+    )
+    coverage = summary["calibration_coverage"]
+
+    assert coverage["cohort_count"] == 4
+    assert coverage["independent_day_count"] == 2
+    assert coverage["daypart_cohorts"] == {
+        "evening_peak": 1,
+        "interpeak": 1,
+        "morning_peak": 1,
+        "night": 1,
+    }
+    assert coverage["minimum_50_outcomes_per_band_met"] is True
+    assert coverage["all_dayparts_met"] is True
+    assert coverage["seven_day_coverage_met"] is False

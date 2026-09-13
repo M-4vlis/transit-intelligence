@@ -11,6 +11,10 @@ before Smart Departure or a public beta. This avoids redesigning ETA components
 before their information hierarchy is known, while preventing visual work from
 being deferred to the end of the project.
 
+Before implementation begins, present the user with the product principles,
+references and two or three visual directions. Visual code changes require this
+explicit discussion and approval checkpoint.
+
 ## Scope
 
 - define the product's visual direction and brand personality;

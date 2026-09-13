@@ -6,8 +6,22 @@ from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 _BANDS = ("high", "medium", "low")
+_CURRENT_SAMPLING_METHOD = "deterministic_vehicle_hash_v1"
+_RIO_TZ = ZoneInfo("America/Sao_Paulo")
+
+
+def _daypart(anchor: datetime) -> str:
+    hour = anchor.astimezone(_RIO_TZ).hour
+    if 6 <= hour < 10:
+        return "morning_peak"
+    if 10 <= hour < 16:
+        return "interpeak"
+    if 16 <= hour < 20:
+        return "evening_peak"
+    return "night"
 
 
 def summarize_reports(
@@ -32,11 +46,22 @@ def summarize_reports(
     errors_over_300_seconds = 0
     monotonic_true = 0
     monotonic_evaluated = 0
-    for _, report in ordered:
+    calibration_dates: set[str] = set()
+    calibration_dayparts: Counter[str] = Counter()
+    calibration_band_outcomes: Counter[str] = Counter()
+    calibration_cohort_count = 0
+    for anchor_text, report in ordered:
         statuses[str(report.get("status", "unknown"))] += 1
         sampling_method = report.get("parameters", {}).get("sampling_method")
         if isinstance(sampling_method, str):
             sampling_methods.add(sampling_method)
+        is_current_sample = sampling_method == _CURRENT_SAMPLING_METHOD
+        if is_current_sample:
+            calibration_cohort_count += 1
+            anchor = datetime.fromisoformat(anchor_text)
+            local_anchor = anchor.astimezone(_RIO_TZ)
+            calibration_dates.add(local_anchor.date().isoformat())
+            calibration_dayparts[_daypart(anchor)] += 1
         excluded_reasons.update(report.get("excluded_reasons", {}))
         overall_diagnostics = report.get("diagnostics", {}).get("overall", {})
         diagnostic_outcomes += int(overall_diagnostics.get("outcome_count") or 0)
@@ -58,6 +83,8 @@ def summarize_reports(
             mae = metrics.get("mae_seconds")
             coverage = metrics.get("interval_coverage")
             totals[band]["outcome_count"] += count
+            if is_current_sample:
+                calibration_band_outcomes[band] += count
             if mae is not None:
                 totals[band]["absolute_error_sum"] += float(mae) * count
             if coverage is not None:
@@ -79,6 +106,25 @@ def summarize_reports(
                 else None
             ),
         }
+
+    all_dayparts = {"morning_peak", "interpeak", "evening_peak", "night"}
+    calibration_coverage = {
+        "sampling_method": _CURRENT_SAMPLING_METHOD,
+        "cohort_count": calibration_cohort_count,
+        "local_dates": sorted(calibration_dates),
+        "independent_day_count": len(calibration_dates),
+        "daypart_cohorts": {
+            name: calibration_dayparts[name] for name in sorted(all_dayparts)
+        },
+        "band_outcomes": {
+            band: calibration_band_outcomes[band] for band in _BANDS
+        },
+        "seven_day_coverage_met": len(calibration_dates) >= 7,
+        "all_dayparts_met": all(calibration_dayparts[name] > 0 for name in all_dayparts),
+        "minimum_50_outcomes_per_band_met": all(
+            calibration_band_outcomes[band] >= 50 for band in _BANDS
+        ),
+    }
 
     return {
         "schema_version": 1,
@@ -107,6 +153,7 @@ def summarize_reports(
             "passed": monotonic_true,
             "evaluated": monotonic_evaluated,
         },
+        "calibration_coverage": calibration_coverage,
         "bands": band_summary,
     }
 
