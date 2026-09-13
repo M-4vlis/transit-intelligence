@@ -30,6 +30,19 @@ exige intervenção do usuário.
 No agregado inicial, 4 de 8 coortes foram monotônicas. O candidato permanece
 `uncalibrated` e não está exposto ao passageiro.
 
+## Diagnóstico paralelo implantado
+
+O replay passou a segmentar viés, cobertura e cauda de erro por método de ETA,
+tipo de casamento e linha, além de medir as distâncias de projeção excluídas. A
+primeira execução com esse diagnóstico elevou o conjunto para 9 coortes e 576
+chegadas observadas.
+
+Nesse lote, houve 26 chegadas observáveis, MAE de 41,19 segundos e um erro acima
+de cinco minutos. Das 200 âncoras, 124 foram excluídas como `vehicle_off_shape`;
+a distância de projeção teve mediana de 1.331 metros e P90 de 7.206 metros. Isso
+indica problema de correspondência entre posição e shape, e não justifica elevar
+o limite atual de 250 metros sem investigar rota, sentido e versão do GTFS.
+
 ## Fonte ao vivo durante a mudança
 
 O ingestion worker continuou recebendo HTTP 200 da fonte oficial do Rio. Um lote
