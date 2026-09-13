@@ -17,7 +17,8 @@ def test_verified_retention_cycle_fails_closed_before_apply() -> None:
     assert text.index("stage=archive") < text.index("stage=independent_restore")
     assert text.index("stage=independent_restore") < text.index("stage=retention_preflight")
     assert text.index("protected_days") < text.index("stage=retention_apply")
-    assert "run --rm retention" in text
+    assert "python3 -" in text
+    assert "run -T --rm retention" in text
 
 
 def test_verified_retention_timer_is_daily_low_priority_and_serialized() -> None:

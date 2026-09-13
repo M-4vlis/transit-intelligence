@@ -25,16 +25,16 @@ preflight_output="$(mktemp)"
 trap 'rm -f "$preflight_output"' EXIT
 
 printf 'archive_day=%s stage=archive\n' "$ARCHIVE_DAY"
-"${COMPOSE[@]}" run --rm archive-day \
+"${COMPOSE[@]}" run -T --rm archive-day \
   python -m app.workers.archive_day --day "$ARCHIVE_DAY"
 
 printf 'archive_day=%s stage=independent_restore\n' "$ARCHIVE_DAY"
-ARCHIVE_DAY="$ARCHIVE_DAY" "${COMPOSE[@]}" run --rm archive-restore-check
+ARCHIVE_DAY="$ARCHIVE_DAY" "${COMPOSE[@]}" run -T --rm archive-restore-check
 
 printf 'archive_day=%s stage=retention_preflight\n' "$ARCHIVE_DAY"
-"${COMPOSE[@]}" run --rm retention-preflight | tee "$preflight_output"
+"${COMPOSE[@]}" run -T --rm retention-preflight | tee "$preflight_output"
 
-python - "$preflight_output" <<'PY'
+python3 - "$preflight_output" <<'PY'
 import json
 import sys
 
@@ -53,5 +53,5 @@ print(
 PY
 
 printf 'archive_day=%s stage=retention_apply\n' "$ARCHIVE_DAY"
-"${COMPOSE[@]}" run --rm retention
+"${COMPOSE[@]}" run -T --rm retention
 printf 'archive_day=%s verified_retention_cycle=complete\n' "$ARCHIVE_DAY"
