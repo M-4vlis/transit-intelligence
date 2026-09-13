@@ -8,7 +8,7 @@ Oracle. O serviço falha antes de alcançar:
 - 2 OCPUs e 12 GiB de memória na forma Ampere A1;
 - 80% do filesystem raiz;
 - 10 GiB somando projeto e artefatos locais;
-- 10 GiB projetados no Object Storage;
+- 10 GB projetados no Object Storage;
 - 30 mil requisições mensais projetadas pelo M2.
 
 A Oracle documenta 1.500 OCPU-horas, 9.000 GB-horas, equivalentes a 2 OCPUs e

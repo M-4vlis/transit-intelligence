@@ -26,6 +26,9 @@ def test_resource_budget_passes_with_large_safety_margin() -> None:
             "object_count": 100,
             "byte_size": 100 * 1024**2,
             "m2_evidence_object_count": 30,
+            "m2_evidence_bytes": 2 * 1024**2,
+            "complete_parquet_object_count": 5,
+            "complete_parquet_bytes": 500 * 1024**2,
         },
     )
 
@@ -51,10 +54,13 @@ def test_resource_budget_fails_before_free_tier_is_exhausted() -> None:
             "object_count": 10_000,
             "byte_size": 9 * 1024**3,
             "m2_evidence_object_count": 2_000,
+            "m2_evidence_bytes": 1024**3,
+            "complete_parquet_object_count": 5,
+            "complete_parquet_bytes": 2 * 1024**3,
         },
     )
 
     assert report["status"] == "failed"
     assert "compute_shape_within_always_free" in report["failures"]
-    assert "projected_object_storage_below_10_gib" in report["failures"]
+    assert "projected_object_storage_below_10_gb" in report["failures"]
     assert "projected_m2_requests_below_operational_budget" in report["failures"]

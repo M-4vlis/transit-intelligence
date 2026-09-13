@@ -13,7 +13,8 @@ from app.infrastructure.parquet import create_s3_compatible_client
 _BYTES_PER_GIB = 1024**3
 _FREE_COMPUTE_OCPUS = 2
 _FREE_COMPUTE_MEMORY_BYTES = 12 * _BYTES_PER_GIB
-_CONSERVATIVE_OBJECT_STORAGE_BYTES = 10 * _BYTES_PER_GIB
+_CONSERVATIVE_OBJECT_STORAGE_BYTES = 10_000_000_000
+_FREE_OBJECT_STORAGE_BYTES = 20_000_000_000
 _FREE_OBJECT_REQUESTS_PER_MONTH = 50_000
 _OPERATIONAL_REQUEST_BUDGET = 30_000
 _COHORTS_PER_MONTH = 8 * 30
@@ -63,6 +64,9 @@ def _object_storage_metrics(client: Any, *, bucket: str, prefix: str) -> dict[st
     count = 0
     byte_size = 0
     evidence_count = 0
+    evidence_bytes = 0
+    complete_parquet_count = 0
+    complete_parquet_bytes = 0
     paginator = client.get_paginator("list_objects_v2")
     for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
         for item in page.get("Contents", []):
@@ -70,10 +74,19 @@ def _object_storage_metrics(client: Any, *, bucket: str, prefix: str) -> dict[st
             byte_size += int(item.get("Size", 0))
             if "/_m2-confidence/evidence/" in str(item.get("Key", "")):
                 evidence_count += 1
+                evidence_bytes += int(item.get("Size", 0))
+            elif str(item.get("Key", "")).endswith(".parquet") and int(
+                item.get("Size", 0)
+            ) >= 1024**2:
+                complete_parquet_count += 1
+                complete_parquet_bytes += int(item.get("Size", 0))
     return {
         "object_count": count,
         "byte_size": byte_size,
         "m2_evidence_object_count": evidence_count,
+        "m2_evidence_bytes": evidence_bytes,
+        "complete_parquet_object_count": complete_parquet_count,
+        "complete_parquet_bytes": complete_parquet_bytes,
     }
 
 
@@ -85,13 +98,17 @@ def build_resource_budget_report(
     object_storage: dict[str, int],
 ) -> dict[str, object]:
     projected_new_evidence = 4 * _COHORTS_PER_MONTH
-    average_evidence_size = (
-        object_storage["byte_size"] // max(object_storage["object_count"], 1)
+    average_evidence_size = object_storage["m2_evidence_bytes"] // max(
+        object_storage["m2_evidence_object_count"], 1
+    )
+    average_complete_parquet_size = object_storage["complete_parquet_bytes"] // max(
+        object_storage["complete_parquet_object_count"], 1
     )
     projected_manifest_overhead = 300 * 1024**2
     projected_storage_bytes = (
         object_storage["byte_size"]
         + projected_new_evidence * average_evidence_size
+        + 30 * average_complete_parquet_size
         + projected_manifest_overhead
     )
     archive_requests = 24 * _COHORTS_PER_MONTH
@@ -108,8 +125,10 @@ def build_resource_budget_report(
         "root_filesystem_below_80_percent": host["root_used_bytes"]
         <= host["root_total_bytes"] * 0.8,
         "project_files_below_10_gib": host["project_bytes"] <= 10 * _BYTES_PER_GIB,
-        "projected_object_storage_below_10_gib": projected_storage_bytes
+        "projected_object_storage_below_10_gb": projected_storage_bytes
         <= _CONSERVATIVE_OBJECT_STORAGE_BYTES,
+        "projected_object_storage_below_free_tier": projected_storage_bytes
+        <= _FREE_OBJECT_STORAGE_BYTES,
         "projected_m2_requests_below_operational_budget": projected_m2_requests
         <= _OPERATIONAL_REQUEST_BUDGET,
         "projected_m2_requests_below_free_tier": projected_m2_requests
@@ -134,6 +153,7 @@ def build_resource_budget_report(
             **object_storage,
             "projected_bytes_after_30_days": projected_storage_bytes,
             "conservative_storage_limit_bytes": _CONSERVATIVE_OBJECT_STORAGE_BYTES,
+            "free_tier_storage_limit_bytes": _FREE_OBJECT_STORAGE_BYTES,
             "projected_m2_api_requests_per_month": projected_m2_requests,
             "operational_request_budget": _OPERATIONAL_REQUEST_BUDGET,
             "free_tier_request_limit": _FREE_OBJECT_REQUESTS_PER_MONTH,
@@ -143,12 +163,14 @@ def build_resource_budget_report(
                 "archive_requests_per_cohort": 24,
                 "daily_full_restore_checks": 30,
                 "manifest_storage_reserve_bytes": projected_manifest_overhead,
+                "average_complete_parquet_size_bytes": average_complete_parquet_size,
+                "projected_new_complete_parquet_days": 30,
             },
         },
         "limits": {
             "always_free_compute_ocpus": _FREE_COMPUTE_OCPUS,
             "always_free_compute_memory_bytes": _FREE_COMPUTE_MEMORY_BYTES,
-            "object_storage_policy": "10 GiB conservative cap; OCI documents 20 GB combined Always Free",
+            "object_storage_policy": "10 GB conservative cap; OCI documents 20 GB combined Always Free",
             "tenancy_wide_usage_not_observed": True,
         },
     }
