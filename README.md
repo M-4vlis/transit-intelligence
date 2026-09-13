@@ -55,7 +55,7 @@ validado integralmente antes de a retenção fail-closed liberar espaço no banc
 A chave destrutiva permanece desabilitada por padrão e foi ligada somente
 durante a execução controlada e comprovada de retenção.
 
-## Marco em desenvolvimento — M1 mapa + ETA básico
+## M1 concluído — mapa + ETA básico
 
 O backend do M1 está ativo na Oracle ARM64: borda HTTPS por túnel de saída,
 catálogo GTFS versionado, mapa mobile e ETA V0 experimental com degradação
@@ -64,8 +64,16 @@ explícita. Perfis históricos por trecho e faixa horária são atualizados a ca
 
 O aplicativo de teste pesquisa e favorita linhas, usa localização sob demanda,
 permite navegar no mapa, filtrar e identificar ônibus e consulta as próximas
-paradas com ETA ao tocar num veículo. A validação final do refinamento M1.4 em
-aparelho real e a adoção de um domínio definitivo permanecem pendentes.
+paradas com ETA ao tocar num veículo. O fluxo foi aprovado em aparelho Android
+real. Um domínio definitivo permanece como gate da futura beta pública.
+
+## Marco em desenvolvimento — M2 Confidence Score
+
+O primeiro score é somente um candidato interno. O replay histórico passa a
+separar MAE, P90 e cobertura do intervalo por faixa provisória, sem mostrar ao
+passageiro uma confiança que ainda não foi calibrada. A modernização visual foi
+formalizada como gate obrigatório após a estabilização do contrato do M2 e antes
+da beta pública.
 
 Veja `docs/M0_TRANSIT_CORE.md` e `docs/VALIDATION.md`.
 

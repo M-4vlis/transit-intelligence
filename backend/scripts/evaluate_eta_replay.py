@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-from collections import Counter
+from collections import Counter, defaultdict
 from datetime import UTC, datetime, timedelta
 from math import floor
 from typing import Any
@@ -11,6 +11,10 @@ from typing import Any
 from app.core.config import settings
 from app.infrastructure.gtfs_postgres import PostgresGtfsCatalog
 from app.infrastructure.postgres import create_postgres_pool
+from app.modules.mobility.confidence import (
+    CandidateConfidenceBand,
+    assess_candidate_confidence,
+)
 from app.modules.mobility.models import VehiclePosition
 
 
@@ -53,6 +57,45 @@ def _percentile(values: list[float], quantile: float) -> float | None:
     upper = min(lower + 1, len(ordered) - 1)
     fraction = index - lower
     return ordered[lower] + (ordered[upper] - ordered[lower]) * fraction
+
+
+def _candidate_confidence_report(
+    errors_by_band: dict[str, list[float]],
+    interval_hits_by_band: Counter[str],
+    scores: list[int],
+) -> dict[str, object]:
+    bands: dict[str, object] = {}
+    maes: dict[str, float] = {}
+    for band in CandidateConfidenceBand:
+        errors = errors_by_band.get(band.value, [])
+        count = len(errors)
+        mae = sum(errors) / count if count else None
+        if mae is not None:
+            maes[band.value] = mae
+        p90 = _percentile(errors, 0.9)
+        bands[band.value] = {
+            "outcome_count": count,
+            "mae_seconds": round(mae, 3) if mae is not None else None,
+            "error_p90_seconds": round(p90, 3) if p90 is not None else None,
+            "interval_coverage": (
+                round(interval_hits_by_band[band.value] / count, 4)
+                if count
+                else None
+            ),
+        }
+    monotonic_mae = None
+    if all(band.value in maes for band in CandidateConfidenceBand):
+        monotonic_mae = (
+            maes[CandidateConfidenceBand.HIGH.value]
+            <= maes[CandidateConfidenceBand.MEDIUM.value]
+            <= maes[CandidateConfidenceBand.LOW.value]
+        )
+    return {
+        "calibration_status": "uncalibrated",
+        "mean_score": round(sum(scores) / len(scores), 3) if scores else None,
+        "monotonic_mae": monotonic_mae,
+        "bands": bands,
+    }
 
 
 async def _anchors(conn: Any, args: argparse.Namespace) -> list[VehiclePosition]:
@@ -136,6 +179,9 @@ async def _run(
     errors: list[float] = []
     signed_errors: list[float] = []
     interval_hits = 0
+    confidence_errors: dict[str, list[float]] = defaultdict(list)
+    confidence_interval_hits: Counter[str] = Counter()
+    confidence_scores: list[int] = []
     try:
         async with pool.acquire() as conn, conn.transaction(readonly=True):
             anchors = await _anchors(conn, args)
@@ -177,16 +223,27 @@ async def _run(
                 match_methods[str(match.match_method or "unknown")] += 1
                 signed_error = (stop.estimated_arrival_at - actual_arrival).total_seconds()
                 signed_errors.append(signed_error)
-                errors.append(abs(signed_error))
+                absolute_error = abs(signed_error)
+                errors.append(absolute_error)
+                confidence = assess_candidate_confidence(
+                    evidence=match.eta_evidence,
+                    position_age_seconds=match.position_age_seconds or 0,
+                    projection_distance_m=match.projection_distance_m or 0,
+                    match_method=match.match_method,
+                )
+                confidence_errors[confidence.band.value].append(absolute_error)
+                confidence_scores.append(confidence.score)
                 actual_eta_seconds = (actual_arrival - position.observed_at).total_seconds()
-                if (
+                interval_hit = (
                     stop.eta_lower_seconds is not None
                     and stop.eta_upper_seconds is not None
                     and stop.eta_lower_seconds
                     <= actual_eta_seconds
                     <= stop.eta_upper_seconds
-                ):
+                )
+                if interval_hit:
                     interval_hits += 1
+                    confidence_interval_hits[confidence.band.value] += 1
     finally:
         await pool.close()
 
@@ -214,6 +271,11 @@ async def _run(
             round(interval_hits / outcome_count, 4) if outcome_count else None
         ),
         "excluded_reasons": dict(sorted(reasons.items())),
+        "candidate_confidence": _candidate_confidence_report(
+            confidence_errors,
+            confidence_interval_hits,
+            confidence_scores,
+        ),
         "parameters": {
             "anchor_age_minutes": args.anchor_age_minutes,
             "anchor_window_seconds": args.anchor_window_seconds,
