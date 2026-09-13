@@ -86,7 +86,9 @@ def test_confidence_evidence_services_are_bounded_and_have_no_data_access() -> N
     assert restore["cap_drop"] == ["ALL"]
     assert archive["mem_limit"] == "256m"
     assert restore["mem_limit"] == "256m"
-    assert archive["user"] == "1000:1000"
+    assert archive["user"] == (
+        "${TRANSIT_CONFIDENCE_UID:-1001}:${TRANSIT_CONFIDENCE_GID:-1001}"
+    )
     assert ":/evidence" in archive["volumes"][0]
 
 
