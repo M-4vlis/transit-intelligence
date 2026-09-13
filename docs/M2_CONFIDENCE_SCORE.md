@@ -35,6 +35,10 @@ e métricas separadas por método de ETA, forma de casamento e linhas mais
 representadas. Distâncias de projeção dos veículos excluídos ajudam a distinguir
 GPS fora do trajeto de problemas no casamento com o GTFS.
 
+As coortes usam uma amostra reproduzível por hash de veículo e instante da
+âncora. Isso distribui a avaliação pela frota e evita repetir os primeiros
+identificadores em ordem lexicográfica.
+
 ### M2.2 — Contrato público
 
 - [ ] congelar versão do algoritmo e limites calibrados;

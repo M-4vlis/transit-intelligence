@@ -398,6 +398,9 @@ async def test_eta_replay_compares_prediction_with_future_gps(tmp_path: Path) ->
             "outcome_count"
         ] == 1
         assert report["diagnostics"]["top_routes"][0]["route_id"] == "483"
+        assert report["parameters"]["sampling_method"] == (
+            "deterministic_vehicle_hash_v1"
+        )
     finally:
         await pool.close()
 

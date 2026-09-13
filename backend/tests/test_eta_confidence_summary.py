@@ -57,6 +57,7 @@ def test_confidence_summary_deduplicates_anchors_and_weights_metrics() -> None:
     assert summary["bands"]["high"]["weighted_interval_coverage"] == 0.65
     assert summary["monotonic_cohorts"] == {"passed": 1, "evaluated": 2}
     assert summary["candidate_versions"] == ["m2-candidate-v2"]
+    assert summary["sampling_methods"] == []
 
 
 def test_confidence_summary_accumulates_exclusions_and_extreme_errors() -> None:

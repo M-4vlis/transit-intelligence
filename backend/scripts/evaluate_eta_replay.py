@@ -185,19 +185,30 @@ async def _anchors(
         anchor_end = anchor_end.replace(tzinfo=UTC)
     rows = await conn.fetch(
         """
-        SELECT DISTINCT ON (position.agency_id,position.vehicle_id)
-            position.agency_id, position.vehicle_id, position.route_id,
-            position.trip_id, position.shape_id, position.latitude, position.longitude,
-            position.speed_mps, position.bearing_deg, position.observed_at,
-            position.received_at, position.source,
-            position.quality_status, position.quality_score
-        FROM transit.vehicle_positions position
-        WHERE position.observed_at <= $1::timestamptz
-          AND position.observed_at >= $1::timestamptz
-              - ($2::double precision * interval '1 second')
-          AND position.shape_id IS NOT NULL
-          AND position.quality_status <> 'invalid'
-        ORDER BY position.agency_id, position.vehicle_id, position.observed_at DESC
+        WITH latest AS (
+            SELECT DISTINCT ON (position.agency_id,position.vehicle_id)
+                position.agency_id, position.vehicle_id, position.route_id,
+                position.trip_id, position.shape_id,
+                position.latitude, position.longitude,
+                position.speed_mps, position.bearing_deg, position.observed_at,
+                position.received_at, position.source,
+                position.quality_status, position.quality_score
+            FROM transit.vehicle_positions position
+            WHERE position.observed_at <= $1::timestamptz
+              AND position.observed_at >= $1::timestamptz
+                  - ($2::double precision * interval '1 second')
+              AND position.shape_id IS NOT NULL
+              AND position.quality_status <> 'invalid'
+            ORDER BY
+                position.agency_id,
+                position.vehicle_id,
+                position.observed_at DESC
+        )
+        SELECT *
+        FROM latest
+        ORDER BY md5(
+            latest.agency_id || ':' || latest.vehicle_id || ':' || $1::text
+        )
         LIMIT $3
         """,
         anchor_end,
@@ -270,6 +281,7 @@ async def _run(
     interval_hits_by_match_method: Counter[str] = Counter()
     interval_hits_by_route: Counter[str] = Counter()
     excluded_projection_distances: dict[str, list[float]] = defaultdict(list)
+    excluded_routes: Counter[tuple[str, str]] = Counter()
     try:
         async with pool.acquire() as conn, conn.transaction(readonly=True):
             anchors, anchor_end = await _anchors(conn, args)
@@ -289,6 +301,7 @@ async def _run(
                 if not match.available:
                     reason = str(match.unavailable_reason or "match_unavailable")
                     reasons[reason] += 1
+                    excluded_routes[(reason, position.route_id)] += 1
                     if match.projection_distance_m is not None:
                         excluded_projection_distances[reason].append(
                             match.projection_distance_m
@@ -404,6 +417,13 @@ async def _run(
                 reason: _distance_diagnostics(values)
                 for reason, values in sorted(excluded_projection_distances.items())
             },
+            "top_excluded_routes": [
+                {"reason": reason, "route_id": route_id, "count": count}
+                for (reason, route_id), count in sorted(
+                    excluded_routes.items(),
+                    key=lambda item: (-item[1], item[0]),
+                )[:10]
+            ],
         },
         "candidate_confidence": _candidate_confidence_report(
             confidence_errors,
@@ -425,6 +445,7 @@ async def _run(
             "historical_profiles_enabled": not getattr(
                 args, "without_historical_profiles", False
             ),
+            "sampling_method": "deterministic_vehicle_hash_v1",
         },
     }
 

@@ -25,6 +25,7 @@ def summarize_reports(
         for band in _BANDS
     }
     versions: set[str] = set()
+    sampling_methods: set[str] = set()
     statuses: Counter[str] = Counter()
     excluded_reasons: Counter[str] = Counter()
     diagnostic_outcomes = 0
@@ -33,6 +34,9 @@ def summarize_reports(
     monotonic_evaluated = 0
     for _, report in ordered:
         statuses[str(report.get("status", "unknown"))] += 1
+        sampling_method = report.get("parameters", {}).get("sampling_method")
+        if isinstance(sampling_method, str):
+            sampling_methods.add(sampling_method)
         excluded_reasons.update(report.get("excluded_reasons", {}))
         overall_diagnostics = report.get("diagnostics", {}).get("overall", {})
         diagnostic_outcomes += int(overall_diagnostics.get("outcome_count") or 0)
@@ -84,6 +88,7 @@ def summarize_reports(
         "first_anchor_at": ordered[0][0] if ordered else None,
         "last_anchor_at": ordered[-1][0] if ordered else None,
         "candidate_versions": sorted(versions),
+        "sampling_methods": sorted(sampling_methods),
         "statuses": dict(sorted(statuses.items())),
         "excluded_reasons": dict(sorted(excluded_reasons.items())),
         "total_outcomes": sum(
