@@ -66,6 +66,26 @@ Ao fim desta etapa havia 11 coortes, 650 chegadas observadas e 96 KiB de
 artefatos. Somente 2 coortes, ambas noturnas e do mesmo dia local, usam a nova
 amostragem e contam para os gates de calibração.
 
+## Correção da base temporal e início formal da calibração
+
+Uma auditoria do replay encontrou mistura entre o instante da posição e o
+instante de avaliação ao procurar a chegada e medir o intervalo. O avaliador foi
+versionado como schema 2, passou a procurar somente chegadas posteriores à
+previsão e usa a mesma origem temporal para ETA previsto, ETA real e limites.
+Coortes anteriores permanecem imutáveis, mas não contam para calibração formal.
+
+A primeira coorte schema 2 produziu 72 observações anônimas. A inspeção confirmou
+ausência das chaves `vehicle_id`, `trip_id`, `shape_id` e `stop_id`. O calibrador
+retornou `insufficient_data`, `promotion_authorized=false`, um dia independente,
+uma faixa de horário e 13/52/7 resultados alta/média/baixa. Portanto, todos os
+gates relevantes continuaram fechados.
+
+A API foi recriada para manter o timestamp absoluto coerente com o ETA restante.
+O endpoint público de rotas respondeu normalmente e a ingestão seguinte recebeu
+5.660 registros, rejeitou zero, persistiu 3.707 e atualizou 5.050 entradas de
+cache. Banco, Valkey, ingestion, edge e tunnel não foram reiniciados; todos os
+containers permaneceram saudáveis e com `RestartCount=0`.
+
 ## Fonte ao vivo durante a mudança
 
 O ingestion worker continuou recebendo HTTP 200 da fonte oficial do Rio. Um lote
