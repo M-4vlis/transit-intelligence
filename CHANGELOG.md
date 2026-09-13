@@ -27,6 +27,8 @@
 
 ### Fixed
 
+- cold archive streams a bounded UTC partition in physical scan order instead
+  of forcing a multi-million-row database sort that delayed realtime writes;
 - Rio GTFS acquisition now uses the municipality's current public endpoint at
   `dados.mobilidade.rio`; the former ArcGIS item became private and returns 403.
 - API loopback publishing uses a dedicated non-masqueraded bridge, preserving

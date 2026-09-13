@@ -385,8 +385,7 @@ class PostgresHistoricalPositionSource:
                     WHERE source = $1
                       AND observed_at >= $2
                       AND observed_at < $3
-                    ORDER BY observed_at, ingest_key
-                    """,
+                """,
                 source,
                 start,
                 end,
