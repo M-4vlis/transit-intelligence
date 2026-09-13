@@ -29,6 +29,13 @@ RESTORE_TIMER = (
     / "systemd"
     / "transit-intelligence-confidence-evidence-restore.timer"
 )
+MONITOR_SCRIPT = ROOT / "infra" / "scripts" / "monitor_eta_confidence_operations.sh"
+MONITOR_SERVICE = (
+    ROOT / "infra" / "systemd" / "transit-intelligence-eta-confidence-monitor.service"
+)
+MONITOR_TIMER = (
+    ROOT / "infra" / "systemd" / "transit-intelligence-eta-confidence-monitor.timer"
+)
 
 
 def test_cohort_script_is_concurrent_safe_and_keeps_audit_artifacts() -> None:
@@ -102,4 +109,19 @@ def test_confidence_restore_timer_is_daily_persistent_and_low_priority() -> None
     assert "User=ubuntu" in service
     assert "Nice=15" in service
     assert "CPUWeight=10" in service
+    assert "NoNewPrivileges=true" in service
+
+
+def test_confidence_monitor_is_frequent_persistent_and_records_failures() -> None:
+    script = MONITOR_SCRIPT.read_text(encoding="utf-8")
+    service = MONITOR_SERVICE.read_text(encoding="utf-8")
+    timer = MONITOR_TIMER.read_text(encoding="utf-8")
+
+    assert "operations-latest.json" in script
+    assert "transit-intelligence-eta-confidence-cohort.service" in script
+    assert "transit-intelligence-confidence-evidence-restore.service" in script
+    assert "OnCalendar=*:0/30" in timer
+    assert "Persistent=true" in timer
+    assert "User=ubuntu" in service
+    assert "Nice=15" in service
     assert "NoNewPrivileges=true" in service

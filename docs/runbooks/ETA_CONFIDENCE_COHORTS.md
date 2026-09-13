@@ -58,6 +58,30 @@ todos os objetos referenciados em diretório temporário, verifica SHA-256 remot
 tamanho e cada entrada do `SHA256SUMS`, e apaga a cópia temporária ao terminar.
 Ele nunca restaura sobre o diretório de produção.
 
+## Monitor operacional
+
+O timer `transit-intelligence-eta-confidence-monitor.timer` roda a cada 30
+minutos e grava `operations-latest.json`. Ele falha e deixa evidência no journal
+se ocorrer qualquer um destes casos:
+
+- coorte automática com mais de cinco horas;
+- falha anterior do coletor ou do restore check;
+- checksum inválido ou conflitante;
+- evidência local ausente do estado confirmado no Object Storage;
+- link latest inválido;
+- drift material: aumento de MAE acima de 60 segundos e 50%, ou queda de
+  cobertura do intervalo acima de 15 pontos percentuais.
+
+O drift só começa a ser comparado quando há seis coortes no schema temporal
+atual; antes disso, o estado explícito é `insufficient_history`, sem falso
+alarme.
+
+```bash
+cat /home/ubuntu/artifacts/transit-intelligence/confidence-cohorts/operations-latest.json
+sudo systemctl status transit-intelligence-eta-confidence-monitor.timer
+sudo journalctl -u transit-intelligence-eta-confidence-monitor.service -n 50
+```
+
 Execução manual segura:
 
 ```bash

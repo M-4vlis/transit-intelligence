@@ -1,0 +1,16 @@
+[Unit]
+Description=Monitor Transit Intelligence M2 confidence evidence and drift
+After=transit-intelligence-eta-confidence-cohort.service
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/apps/transit-intelligence
+ExecStart=/bin/bash infra/scripts/monitor_eta_confidence_operations.sh
+TimeoutStartSec=5min
+Nice=15
+IOSchedulingClass=idle
+CPUWeight=10
+IOWeight=10
+NoNewPrivileges=true

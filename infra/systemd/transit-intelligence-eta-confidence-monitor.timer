@@ -1,0 +1,11 @@
+[Unit]
+Description=Monitor Transit Intelligence M2 confidence evidence every 30 minutes
+
+[Timer]
+OnCalendar=*:0/30
+RandomizedDelaySec=2min
+Persistent=true
+Unit=transit-intelligence-eta-confidence-monitor.service
+
+[Install]
+WantedBy=timers.target
