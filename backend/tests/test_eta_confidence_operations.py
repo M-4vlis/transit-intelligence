@@ -51,7 +51,11 @@ def test_operations_report_passes_complete_fresh_evidence(tmp_path: Path) -> Non
         directory=tmp_path,
         now=now,
         maximum_cohort_age_hours=5,
-        service_results={"cohort": ("success", 0), "restore": ("success", 0)},
+        service_results={
+            "cohort": ("success", 0),
+            "restore": ("success", 0),
+            "resource_budget": ("success", 0),
+        },
     )
 
     assert report["status"] == "passed"
@@ -70,7 +74,11 @@ def test_operations_report_fails_overdue_tampered_and_unarchived(tmp_path: Path)
         directory=tmp_path,
         now=now,
         maximum_cohort_age_hours=5,
-        service_results={"cohort": ("exit-code", 1), "restore": ("success", 0)},
+        service_results={
+            "cohort": ("exit-code", 1),
+            "restore": ("success", 0),
+            "resource_budget": ("success", 0),
+        },
     )
 
     assert report["status"] == "failed"

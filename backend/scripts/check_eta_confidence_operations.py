@@ -244,6 +244,8 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--cohort-service-exit-status", type=int, default=0)
     parser.add_argument("--restore-service-result", default="unknown")
     parser.add_argument("--restore-service-exit-status", type=int, default=0)
+    parser.add_argument("--budget-service-result", default="unknown")
+    parser.add_argument("--budget-service-exit-status", type=int, default=0)
     return parser.parse_args()
 
 
@@ -261,6 +263,10 @@ def main() -> None:
             "restore": (
                 args.restore_service_result,
                 args.restore_service_exit_status,
+            ),
+            "resource_budget": (
+                args.budget_service_result,
+                args.budget_service_exit_status,
             ),
         },
     )

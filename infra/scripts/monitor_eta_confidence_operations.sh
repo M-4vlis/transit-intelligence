@@ -19,6 +19,8 @@ cohort_result="$(unit_value transit-intelligence-eta-confidence-cohort.service R
 cohort_status="$(unit_value transit-intelligence-eta-confidence-cohort.service ExecMainStatus)"
 restore_result="$(unit_value transit-intelligence-confidence-evidence-restore.service Result)"
 restore_status="$(unit_value transit-intelligence-confidence-evidence-restore.service ExecMainStatus)"
+budget_result="$(unit_value transit-intelligence-m2-resource-budget.service Result)"
+budget_status="$(unit_value transit-intelligence-m2-resource-budget.service ExecMainStatus)"
 
 set +e
 python3 "$ROOT_DIR/backend/scripts/check_eta_confidence_operations.py" \
@@ -26,7 +28,9 @@ python3 "$ROOT_DIR/backend/scripts/check_eta_confidence_operations.py" \
   --cohort-service-result "$cohort_result" \
   --cohort-service-exit-status "${cohort_status:-0}" \
   --restore-service-result "$restore_result" \
-  --restore-service-exit-status "${restore_status:-0}" >"$temporary"
+  --restore-service-exit-status "${restore_status:-0}" \
+  --budget-service-result "$budget_result" \
+  --budget-service-exit-status "${budget_status:-0}" >"$temporary"
 result=$?
 set -e
 mv "$temporary" "$output"

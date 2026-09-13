@@ -16,10 +16,15 @@ A Oracle documenta 1.500 OCPU-horas, 9.000 GB-horas, equivalentes a 2 OCPUs e
 mil requisições mensais. Fonte oficial:
 https://docs.oracle.com/pt-br/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm
 
-O teto interno de 10 GiB e 30 mil requisições deixa margem para o histórico e
+O teto interno de 10 GB e 30 mil requisições deixa margem para o histórico e
 outros usos da tenancy. A medição não enxerga recursos de outras instâncias ou
 buckets; por isso o relatório marca explicitamente
 `tenancy_wide_usage_not_observed=true`.
+
+Ultrapassar apenas a projeção interna de 10 GB gera `status=warning`, mantendo o
+timer saudável enquanto ainda houver margem até os 20 GB documentados. Exceder
+o limite gratuito projetado, ou qualquer limite imediato de host, gera
+`status=failed` e falha o serviço.
 
 ## Automação
 

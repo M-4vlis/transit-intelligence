@@ -136,12 +136,17 @@ def build_resource_budget_report(
         "instant_container_cpu_below_150_percent": cpu_peak < 150,
         "container_memory_below_8_gib": memory_used < 8 * _BYTES_PER_GIB,
     }
-    failures = [name for name, passed in checks.items() if not passed]
+    warning_checks = {"projected_object_storage_below_10_gb"}
+    failures = [
+        name for name, passed in checks.items() if not passed and name not in warning_checks
+    ]
+    warnings = [name for name, passed in checks.items() if not passed and name in warning_checks]
     return {
         "schema_version": 1,
         "generated_at": generated_at.astimezone(UTC).isoformat(),
-        "status": "passed" if not failures else "failed",
+        "status": "failed" if failures else "warning" if warnings else "passed",
         "failures": failures,
+        "warnings": warnings,
         "checks": checks,
         "host": host,
         "containers": {
@@ -207,7 +212,7 @@ def main() -> None:
         ),
     )
     print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
-    raise SystemExit(0 if report["status"] == "passed" else 1)
+    raise SystemExit(0 if report["status"] != "failed" else 1)
 
 
 if __name__ == "__main__":
