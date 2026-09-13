@@ -78,7 +78,8 @@ Depois da aprovação explícita, produção usa `HOT_RETENTION_DAYS=7` e
 `transit-intelligence-verified-retention.timer` roda diariamente, em baixa
 prioridade, e executa obrigatoriamente esta sequência:
 
-1. arquiva o dia UTC anterior em Parquet no Object Storage;
+1. revisa os últimos 8 dias e arquiva qualquer lacuna em Parquet no Object
+   Storage;
 2. baixa o objeto completo e valida linhas, tamanho e SHA-256;
 3. executa o preflight de todas as partições candidatas;
 4. aborta se qualquer candidata estiver protegida;

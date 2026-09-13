@@ -3,12 +3,13 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 ENV_FILE="${1:-$ROOT_DIR/.env.production}"
-ARCHIVE_DAY="${2:-$(date -u -d yesterday +%F)}"
+REQUESTED_DAY="${2:-}"
+RESTORE_DAY="${REQUESTED_DAY:-$(date -u -d yesterday +%F)}"
 COMPOSE_FILE="$ROOT_DIR/infra/docker-compose.production.yml"
 COMPOSE=(docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" --profile maintenance)
 
-if [[ ! "$ARCHIVE_DAY" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
-  printf 'invalid archive day: %s\n' "$ARCHIVE_DAY" >&2
+if [[ ! "$RESTORE_DAY" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+  printf 'invalid archive day: %s\n' "$RESTORE_DAY" >&2
   exit 2
 fi
 
@@ -24,14 +25,28 @@ fi
 preflight_output="$(mktemp)"
 trap 'rm -f "$preflight_output"' EXIT
 
-printf 'archive_day=%s stage=archive\n' "$ARCHIVE_DAY"
-"${COMPOSE[@]}" run -T --rm archive-day \
-  python -m app.workers.archive_day --day "$ARCHIVE_DAY"
+if [[ -n "$REQUESTED_DAY" ]]; then
+  archive_days=("$REQUESTED_DAY")
+else
+  # Revisit the full hot window plus its next retention candidate. Verified
+  # manifests make this idempotent and a missed timer heals on the next run.
+  mapfile -t archive_days < <(
+    for offset in $(seq 8 -1 1); do
+      date -u -d "$offset days ago" +%F
+    done
+  )
+fi
 
-printf 'archive_day=%s stage=independent_restore\n' "$ARCHIVE_DAY"
-ARCHIVE_DAY="$ARCHIVE_DAY" "${COMPOSE[@]}" run -T --rm archive-restore-check
+for archive_day in "${archive_days[@]}"; do
+  printf 'archive_day=%s stage=archive\n' "$archive_day"
+  "${COMPOSE[@]}" run -T --rm archive-day \
+    python -m app.workers.archive_day --day "$archive_day"
+done
 
-printf 'archive_day=%s stage=retention_preflight\n' "$ARCHIVE_DAY"
+printf 'archive_day=%s stage=independent_restore\n' "$RESTORE_DAY"
+ARCHIVE_DAY="$RESTORE_DAY" "${COMPOSE[@]}" run -T --rm archive-restore-check
+
+printf 'archive_day=%s stage=retention_preflight\n' "$RESTORE_DAY"
 "${COMPOSE[@]}" run -T --rm retention-preflight | tee "$preflight_output"
 
 python3 - "$preflight_output" <<'PY'
@@ -52,6 +67,6 @@ print(
 )
 PY
 
-printf 'archive_day=%s stage=retention_apply\n' "$ARCHIVE_DAY"
+printf 'archive_day=%s stage=retention_apply\n' "$RESTORE_DAY"
 "${COMPOSE[@]}" run -T --rm retention
-printf 'archive_day=%s verified_retention_cycle=complete\n' "$ARCHIVE_DAY"
+printf 'archive_day=%s verified_retention_cycle=complete\n' "$RESTORE_DAY"
