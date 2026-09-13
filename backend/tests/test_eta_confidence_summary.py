@@ -57,3 +57,31 @@ def test_confidence_summary_deduplicates_anchors_and_weights_metrics() -> None:
     assert summary["bands"]["high"]["weighted_interval_coverage"] == 0.65
     assert summary["monotonic_cohorts"] == {"passed": 1, "evaluated": 2}
     assert summary["candidate_versions"] == ["m2-candidate-v2"]
+
+
+def test_confidence_summary_accumulates_exclusions_and_extreme_errors() -> None:
+    report = _report(
+        "2026-09-13T06:00:00+00:00",
+        high=(10, 20, 0.8),
+        medium=(20, 40, 0.6),
+        low=(5, 100, 0.2),
+        monotonic=True,
+    )
+    report["excluded_reasons"] = {"vehicle_off_shape": 12}
+    report["diagnostics"] = {
+        "overall": {
+            "outcome_count": 35,
+            "error_over_300_seconds_count": 7,
+        }
+    }
+
+    summary = summarize_reports(
+        [report], generated_at=datetime(2026, 9, 13, 7, tzinfo=UTC)
+    )
+
+    assert summary["excluded_reasons"] == {"vehicle_off_shape": 12}
+    assert summary["diagnostics"] == {
+        "outcome_count": 35,
+        "error_over_300_seconds_count": 7,
+        "error_over_300_seconds_rate": 0.2,
+    }

@@ -30,6 +30,11 @@ confiança depois que cada faixa demonstrar esse comportamento em chegadas reais
 - [ ] verificar que uma linha, região ou método não domina artificialmente uma
   faixa.
 
+O replay também registra cauda de erros acima de cinco minutos, viés, cobertura
+e métricas separadas por método de ETA, forma de casamento e linhas mais
+representadas. Distâncias de projeção dos veículos excluídos ajudam a distinguir
+GPS fora do trajeto de problemas no casamento com o GTFS.
+
 ### M2.2 — Contrato público
 
 - [ ] congelar versão do algoritmo e limites calibrados;

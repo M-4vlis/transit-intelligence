@@ -26,10 +26,19 @@ def summarize_reports(
     }
     versions: set[str] = set()
     statuses: Counter[str] = Counter()
+    excluded_reasons: Counter[str] = Counter()
+    diagnostic_outcomes = 0
+    errors_over_300_seconds = 0
     monotonic_true = 0
     monotonic_evaluated = 0
     for _, report in ordered:
         statuses[str(report.get("status", "unknown"))] += 1
+        excluded_reasons.update(report.get("excluded_reasons", {}))
+        overall_diagnostics = report.get("diagnostics", {}).get("overall", {})
+        diagnostic_outcomes += int(overall_diagnostics.get("outcome_count") or 0)
+        errors_over_300_seconds += int(
+            overall_diagnostics.get("error_over_300_seconds_count") or 0
+        )
         candidate = report.get("candidate_confidence", {})
         version = candidate.get("candidate_version")
         if isinstance(version, str):
@@ -76,9 +85,19 @@ def summarize_reports(
         "last_anchor_at": ordered[-1][0] if ordered else None,
         "candidate_versions": sorted(versions),
         "statuses": dict(sorted(statuses.items())),
+        "excluded_reasons": dict(sorted(excluded_reasons.items())),
         "total_outcomes": sum(
             int(band_summary[band]["outcome_count"]) for band in _BANDS
         ),
+        "diagnostics": {
+            "outcome_count": diagnostic_outcomes,
+            "error_over_300_seconds_count": errors_over_300_seconds,
+            "error_over_300_seconds_rate": (
+                round(errors_over_300_seconds / diagnostic_outcomes, 4)
+                if diagnostic_outcomes
+                else None
+            ),
+        },
         "monotonic_cohorts": {
             "passed": monotonic_true,
             "evaluated": monotonic_evaluated,

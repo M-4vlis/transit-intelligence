@@ -60,6 +60,63 @@ def _percentile(values: list[float], quantile: float) -> float | None:
     return ordered[lower] + (ordered[upper] - ordered[lower]) * fraction
 
 
+def _error_diagnostics(
+    signed_errors: list[float], *, interval_hits: int = 0
+) -> dict[str, int | float | None]:
+    absolute_errors = [abs(value) for value in signed_errors]
+    count = len(absolute_errors)
+    mae = sum(absolute_errors) / count if count else None
+    bias = sum(signed_errors) / count if count else None
+    over_300_count = sum(value > 300 for value in absolute_errors)
+    return {
+        "outcome_count": count,
+        "mae_seconds": round(mae, 3) if mae is not None else None,
+        "bias_seconds": round(bias, 3) if bias is not None else None,
+        "error_p50_seconds": (
+            round(value, 3)
+            if (value := _percentile(absolute_errors, 0.5)) is not None
+            else None
+        ),
+        "error_p90_seconds": (
+            round(value, 3)
+            if (value := _percentile(absolute_errors, 0.9)) is not None
+            else None
+        ),
+        "interval_coverage": round(interval_hits / count, 4) if count else None,
+        "error_over_300_seconds_count": over_300_count,
+        "error_over_300_seconds_rate": (
+            round(over_300_count / count, 4) if count else None
+        ),
+    }
+
+
+def _grouped_error_diagnostics(
+    groups: dict[str, list[float]],
+    interval_hits: Counter[str],
+) -> dict[str, object]:
+    return {
+        name: _error_diagnostics(values, interval_hits=interval_hits[name])
+        for name, values in sorted(groups.items())
+    }
+
+
+def _distance_diagnostics(values: list[float]) -> dict[str, int | float | None]:
+    return {
+        "count": len(values),
+        "p50_m": (
+            round(value, 3)
+            if (value := _percentile(values, 0.5)) is not None
+            else None
+        ),
+        "p90_m": (
+            round(value, 3)
+            if (value := _percentile(values, 0.9)) is not None
+            else None
+        ),
+        "max_m": round(max(values), 3) if values else None,
+    }
+
+
 def _candidate_confidence_report(
     errors_by_band: dict[str, list[float]],
     interval_hits_by_band: Counter[str],
@@ -206,6 +263,13 @@ async def _run(
     confidence_scores: list[int] = []
     confidence_component_totals: Counter[str] = Counter()
     confidence_reason_counts: Counter[str] = Counter()
+    errors_by_method: dict[str, list[float]] = defaultdict(list)
+    errors_by_match_method: dict[str, list[float]] = defaultdict(list)
+    errors_by_route: dict[str, list[float]] = defaultdict(list)
+    interval_hits_by_method: Counter[str] = Counter()
+    interval_hits_by_match_method: Counter[str] = Counter()
+    interval_hits_by_route: Counter[str] = Counter()
+    excluded_projection_distances: dict[str, list[float]] = defaultdict(list)
     try:
         async with pool.acquire() as conn, conn.transaction(readonly=True):
             anchors, anchor_end = await _anchors(conn, args)
@@ -223,7 +287,12 @@ async def _run(
                     evaluated_at=anchor_end,
                 )
                 if not match.available:
-                    reasons[str(match.unavailable_reason or "match_unavailable")] += 1
+                    reason = str(match.unavailable_reason or "match_unavailable")
+                    reasons[reason] += 1
+                    if match.projection_distance_m is not None:
+                        excluded_projection_distances[reason].append(
+                            match.projection_distance_m
+                        )
                     continue
                 if match.eta_evidence is None:
                     reasons[str(match.eta_unavailable_reason or "eta_unavailable")] += 1
@@ -243,12 +312,17 @@ async def _run(
                 if actual_arrival is None:
                     reasons["arrival_not_observed"] += 1
                     continue
-                methods[match.eta_evidence.method.value] += 1
-                match_methods[str(match.match_method or "unknown")] += 1
+                method = match.eta_evidence.method.value
+                match_method = str(match.match_method or "unknown")
+                methods[method] += 1
+                match_methods[match_method] += 1
                 signed_error = (stop.estimated_arrival_at - actual_arrival).total_seconds()
                 signed_errors.append(signed_error)
                 absolute_error = abs(signed_error)
                 errors.append(absolute_error)
+                errors_by_method[method].append(signed_error)
+                errors_by_match_method[match_method].append(signed_error)
+                errors_by_route[position.route_id].append(signed_error)
                 confidence = assess_candidate_confidence(
                     evidence=match.eta_evidence,
                     position_age_seconds=match.position_age_seconds or 0,
@@ -270,6 +344,9 @@ async def _run(
                 if interval_hit:
                     interval_hits += 1
                     confidence_interval_hits[confidence.band.value] += 1
+                    interval_hits_by_method[method] += 1
+                    interval_hits_by_match_method[match_method] += 1
+                    interval_hits_by_route[position.route_id] += 1
     finally:
         await pool.close()
 
@@ -297,6 +374,37 @@ async def _run(
             round(interval_hits / outcome_count, 4) if outcome_count else None
         ),
         "excluded_reasons": dict(sorted(reasons.items())),
+        "diagnostics": {
+            "overall": _error_diagnostics(
+                signed_errors,
+                interval_hits=interval_hits,
+            ),
+            "by_eta_method": _grouped_error_diagnostics(
+                errors_by_method,
+                interval_hits_by_method,
+            ),
+            "by_match_method": _grouped_error_diagnostics(
+                errors_by_match_method,
+                interval_hits_by_match_method,
+            ),
+            "top_routes": [
+                {
+                    "route_id": route_id,
+                    **_error_diagnostics(
+                        route_errors,
+                        interval_hits=interval_hits_by_route[route_id],
+                    ),
+                }
+                for route_id, route_errors in sorted(
+                    errors_by_route.items(),
+                    key=lambda item: (-len(item[1]), item[0]),
+                )[:10]
+            ],
+            "excluded_projection_distance_m": {
+                reason: _distance_diagnostics(values)
+                for reason, values in sorted(excluded_projection_distances.items())
+            },
+        },
         "candidate_confidence": _candidate_confidence_report(
             confidence_errors,
             confidence_interval_hits,

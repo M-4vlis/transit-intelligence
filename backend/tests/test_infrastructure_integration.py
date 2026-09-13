@@ -393,6 +393,11 @@ async def test_eta_replay_compares_prediction_with_future_gps(tmp_path: Path) ->
         assert report["error_p50_seconds"] == report["mae_seconds"]
         assert report["methods"] == {"vehicle_recent_speed": 1}
         assert report["match_methods"] == {"exact_trip": 1}
+        assert report["diagnostics"]["overall"]["outcome_count"] == 1
+        assert report["diagnostics"]["by_eta_method"]["vehicle_recent_speed"][
+            "outcome_count"
+        ] == 1
+        assert report["diagnostics"]["top_routes"][0]["route_id"] == "483"
     finally:
         await pool.close()
 

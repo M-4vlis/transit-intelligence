@@ -13,7 +13,13 @@ from app.modules.mobility.gtfs.models import (
     JourneyMatchMethod,
     UpcomingGtfsStop,
 )
-from scripts.evaluate_eta_replay import _candidate_confidence_report, _percentile
+from scripts.evaluate_eta_replay import (
+    _candidate_confidence_report,
+    _distance_diagnostics,
+    _error_diagnostics,
+    _grouped_error_diagnostics,
+    _percentile,
+)
 from scripts.refresh_eta_segment_profiles import _aligned_window_end
 
 
@@ -82,6 +88,38 @@ def test_replay_percentile_uses_linear_interpolation() -> None:
     assert _percentile([], 0.9) is None
     assert _percentile([10, 20, 30, 40], 0.5) == 25
     assert _percentile([10, 20, 30, 40], 0.9) == 37
+
+
+def test_replay_error_diagnostics_expose_bias_tail_and_coverage() -> None:
+    diagnostics = _error_diagnostics([-40, 100, 500], interval_hits=2)
+
+    assert diagnostics == {
+        "outcome_count": 3,
+        "mae_seconds": 213.333,
+        "bias_seconds": 186.667,
+        "error_p50_seconds": 100,
+        "error_p90_seconds": 420,
+        "interval_coverage": 0.6667,
+        "error_over_300_seconds_count": 1,
+        "error_over_300_seconds_rate": 0.3333,
+    }
+
+
+def test_replay_grouped_diagnostics_are_stable_and_distance_is_summarized() -> None:
+    grouped = _grouped_error_diagnostics(
+        {"fallback": [60], "direct": [-10, 20]},
+        Counter({"direct": 1}),
+    )
+
+    assert list(grouped) == ["direct", "fallback"]
+    assert grouped["direct"]["mae_seconds"] == 15
+    assert grouped["fallback"]["interval_coverage"] == 0
+    assert _distance_diagnostics([251, 300, 500]) == {
+        "count": 3,
+        "p50_m": 300,
+        "p90_m": 460,
+        "max_m": 500,
+    }
 
 
 def test_profile_refresh_uses_only_complete_delayed_windows() -> None:
