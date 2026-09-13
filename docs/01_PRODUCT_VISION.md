@@ -100,9 +100,10 @@ Começar no Rio de Janeiro e desenhar desde o primeiro dia uma camada de normali
 1. Fundação e ingestão.
 2. Mapa + ETA básico.
 3. Confidence Score.
-4. Smart Departure.
-5. Crowdsourcing.
-6. Multimodal.
-7. Analytics.
-8. Expansão geográfica.
-9. API comercial.
+4. Design system + modernização de UX (gate antes da beta pública).
+5. Smart Departure.
+6. Crowdsourcing.
+7. Multimodal.
+8. Analytics.
+9. Expansão geográfica.
+10. API comercial.

@@ -35,8 +35,11 @@ Target: Android ARM64 (`arm64-v8a`)
 - full public APK download: HTTP 200, Android package MIME type, byte ranges and
   matching SHA-256.
 
-## Remaining gate
+## Physical-device result
 
-Legibility, gestures, location-permission states, route filtering and ETA must
-be exercised on the user's physical device. The public APK and Quick Tunnel are
-temporary test infrastructure and must be removed after validation.
+On 2026-09-13 the user confirmed that installation, startup, location centering,
+map gestures, route filtering, marker interaction and ETA all worked as expected
+on the physical Android device. The test exposed duplicate passenger-facing
+route chips for direction variants and ambiguous decluttering copy; both were
+corrected immediately after acceptance. The public APK and Quick Tunnel remain
+temporary test infrastructure.

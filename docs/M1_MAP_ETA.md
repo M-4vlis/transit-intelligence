@@ -63,7 +63,7 @@ degrade com transparência quando o GPS estiver antigo.
 - [x] diferenciar visualmente paradas e veículos com ícones, legenda acessível e
   identificação ao toque;
 - [x] reduzir sobreposição de marcadores por filtro de linha e agrupamento;
-- [ ] validar legibilidade, gestos e estados de permissão em aparelho real.
+- [x] validar legibilidade, gestos e estados de permissão em aparelho real.
 
 Esses itens foram registrados após o primeiro teste em aparelho da v0.1.2. O
 mapa funcional atual permanece deliberadamente simples enquanto o ETA V0 prova

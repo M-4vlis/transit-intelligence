@@ -14,6 +14,7 @@ import { colors } from '@/constants/theme';
 import { presentGpsQuality } from '@/features/quality/gps-quality';
 
 import { selectDecluttered } from './declutter';
+import { presentRouteLabel } from './route-filter';
 import type { MapCenter, MapProviderAdapter, TransitMapProps } from './types';
 import {
   centerAfterPan,
@@ -192,7 +193,7 @@ function OsmRasterMapSurface({
                 : colors.stale;
           return (
             <Pressable
-              accessibilityLabel={`Linha ${vehicle.route_id}, veículo ${vehicle.vehicle_id}, ${quality.label}`}
+              accessibilityLabel={`Linha ${presentRouteLabel(vehicle.route_id)}, veículo ${vehicle.vehicle_id}, ${quality.label}`}
               accessibilityRole="button"
               hitSlop={5}
               key={`vehicle-${vehicle.agency_id}-${vehicle.vehicle_id}`}
@@ -214,8 +215,8 @@ function OsmRasterMapSurface({
 
       <View pointerEvents="none" style={styles.markerSummary}>
         <Text style={styles.markerSummaryText}>
-          Exibindo {visibleVehicles.length}/{vehicles.length} ônibus · {visibleStops.length}/
-          {stops.length} pontos
+          Visíveis sem sobreposição: {visibleVehicles.length} de {vehicles.length} ônibus ·{' '}
+          {visibleStops.length} de {stops.length} pontos
         </Text>
       </View>
 

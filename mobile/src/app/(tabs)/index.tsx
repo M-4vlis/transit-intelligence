@@ -8,7 +8,7 @@ import { presentEta, presentJourneyUnavailable } from '@/features/eta/presentati
 import { useVehicleEta } from '@/features/eta/use-vehicle-eta';
 import { MapSurface } from '@/features/map/map-surface';
 import type { MapCenter } from '@/features/map/types';
-import { presentRouteLabel, uniqueRouteIds } from '@/features/map/route-filter';
+import { presentRouteLabel, uniqueRouteLabels } from '@/features/map/route-filter';
 import { useNearbyTransit } from '@/features/map/use-nearby-transit';
 import { presentGpsQuality } from '@/features/quality/gps-quality';
 
@@ -27,22 +27,24 @@ export default function MapScreen() {
   const [userLocation, setUserLocation] = useState<MapCenter | null>(null);
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
-  const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
+  const [selectedRouteLabel, setSelectedRouteLabel] = useState<string | null>(null);
   const eta = useVehicleEta();
   const { stops, vehicles, loading, error, refresh } = useNearbyTransit(loadedCenter);
   const areaMoved = centersDiffer(center, loadedCenter);
-  const routeIds = useMemo(
-    () => uniqueRouteIds(vehicles.map((vehicle) => vehicle.route_id)),
+  const routeLabels = useMemo(
+    () => uniqueRouteLabels(vehicles.map((vehicle) => vehicle.route_id)),
     [vehicles],
   );
-  const activeRouteId =
-    selectedRouteId && routeIds.includes(selectedRouteId) ? selectedRouteId : null;
+  const activeRouteLabel =
+    selectedRouteLabel && routeLabels.includes(selectedRouteLabel) ? selectedRouteLabel : null;
   const displayedVehicles = useMemo(
     () =>
-      activeRouteId
-        ? vehicles.filter((vehicle) => vehicle.route_id === activeRouteId)
+      activeRouteLabel
+        ? vehicles.filter(
+            (vehicle) => presentRouteLabel(vehicle.route_id) === activeRouteLabel,
+          )
         : vehicles,
-    [activeRouteId, vehicles],
+    [activeRouteLabel, vehicles],
   );
   const qualityCounts = useMemo(
     () =>
@@ -110,29 +112,29 @@ export default function MapScreen() {
         showsHorizontalScrollIndicator={false}>
         <Pressable
           accessibilityRole="button"
-          accessibilityState={{ selected: activeRouteId === null }}
-          onPress={() => setSelectedRouteId(null)}
-          style={[styles.filterChip, activeRouteId === null && styles.filterChipSelected]}>
+          accessibilityState={{ selected: activeRouteLabel === null }}
+          onPress={() => setSelectedRouteLabel(null)}
+          style={[styles.filterChip, activeRouteLabel === null && styles.filterChipSelected]}>
           <Text
             style={[
               styles.filterChipText,
-              activeRouteId === null && styles.filterChipTextSelected,
+              activeRouteLabel === null && styles.filterChipTextSelected,
             ]}>
             Todas
           </Text>
         </Pressable>
-        {routeIds.map((routeId) => {
-          const selected = routeId === activeRouteId;
+        {routeLabels.map((routeLabel) => {
+          const selected = routeLabel === activeRouteLabel;
           return (
             <Pressable
-              accessibilityLabel={`Filtrar linha ${presentRouteLabel(routeId)}`}
+              accessibilityLabel={`Filtrar linha ${routeLabel}`}
               accessibilityRole="button"
               accessibilityState={{ selected }}
-              key={routeId}
-              onPress={() => setSelectedRouteId(selected ? null : routeId)}
+              key={routeLabel}
+              onPress={() => setSelectedRouteLabel(selected ? null : routeLabel)}
               style={[styles.filterChip, selected && styles.filterChipSelected]}>
               <Text style={[styles.filterChipText, selected && styles.filterChipTextSelected]}>
-                {presentRouteLabel(routeId)}
+                {routeLabel}
               </Text>
             </Pressable>
           );
