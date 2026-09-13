@@ -14,11 +14,13 @@ confiança depois que cada faixa demonstrar esse comportamento em chegadas reais
 - [x] manter o candidato fora da resposta pública e da interface;
 - [x] produzir score, faixa provisória, componentes e motivos estáveis;
 - [x] segmentar o replay por faixa candidata;
-- [ ] executar coortes históricas suficientes na Oracle.
+- [x] executar a primeira bateria multicoorte na Oracle, com 528 chegadas
+  observadas e separação preliminar das três faixas.
 
 ### M2.1 — Calibração
 
-- [ ] ampliar o conjunto rotulado para pelo menos 300 chegadas observadas;
+- [x] ampliar o conjunto rotulado inicial para pelo menos 300 chegadas
+  observadas;
 - [ ] cobrir pico, entrepico, noite e dias independentes;
 - [ ] garantir pelo menos 50 resultados por faixa que será publicada;
 - [ ] demonstrar MAE e P90 monotônicos entre alta, média e baixa confiança;
