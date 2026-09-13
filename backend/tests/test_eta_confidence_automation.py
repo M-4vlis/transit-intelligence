@@ -37,6 +37,12 @@ MONITOR_TIMER = (
     ROOT / "infra" / "systemd" / "transit-intelligence-eta-confidence-monitor.timer"
 )
 READINESS_SCRIPT = ROOT / "infra" / "scripts" / "build_m2_readiness_report.sh"
+BUDGET_SERVICE = (
+    ROOT / "infra" / "systemd" / "transit-intelligence-m2-resource-budget.service"
+)
+BUDGET_TIMER = (
+    ROOT / "infra" / "systemd" / "transit-intelligence-m2-resource-budget.timer"
+)
 
 
 def test_cohort_script_is_concurrent_safe_and_keeps_audit_artifacts() -> None:
@@ -138,3 +144,21 @@ def test_cohort_builds_and_archives_guarded_readiness_report() -> None:
     assert "readiness-latest.json" in readiness
     assert 'sha256sum "$report"' in readiness
     assert 'd["promotion_authorized"] is False' in readiness
+
+
+def test_resource_budget_service_is_bounded_and_scheduled_daily() -> None:
+    compose = yaml.safe_load(COMPOSE.read_text(encoding="utf-8"))
+    budget = compose["services"]["m2-resource-budget"]
+    service = BUDGET_SERVICE.read_text(encoding="utf-8")
+    timer = BUDGET_TIMER.read_text(encoding="utf-8")
+
+    assert budget["networks"] == ["egress"]
+    assert budget["read_only"] is True
+    assert budget["cap_drop"] == ["ALL"]
+    assert budget["mem_limit"] == "256m"
+    assert budget["cpus"] == 0.2
+    assert "OnCalendar=*-*-* 06:20:00 UTC" in timer
+    assert "Persistent=true" in timer
+    assert "User=ubuntu" in service
+    assert "Nice=15" in service
+    assert "NoNewPrivileges=true" in service

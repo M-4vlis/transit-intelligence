@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Transit Intelligence M2 Free Tier resource budget
+
+[Timer]
+OnCalendar=*-*-* 06:20:00 UTC
+RandomizedDelaySec=10min
+Persistent=true
+Unit=transit-intelligence-m2-resource-budget.service
+
+[Install]
+WantedBy=timers.target

@@ -471,6 +471,45 @@ services:
     mem_limit: 256m
     cpus: 0.2
 
+  m2-resource-budget:
+    profiles: ["maintenance"]
+    build:
+      context: ../backend
+      args:
+        INSTALL_TARGET: ".[archive]"
+    command: ["python", "scripts/measure_m2_resource_budget.py"]
+    environment:
+      <<: *app-environment
+      ARCHIVE_STORAGE_KIND: ${ARCHIVE_STORAGE_KIND:-local}
+      ARCHIVE_S3_ENDPOINT: ${ARCHIVE_S3_ENDPOINT:-}
+      ARCHIVE_S3_REGION: ${ARCHIVE_S3_REGION:-}
+      ARCHIVE_S3_BUCKET: ${ARCHIVE_S3_BUCKET:-}
+      ARCHIVE_S3_ACCESS_KEY_ID: ${ARCHIVE_S3_ACCESS_KEY_ID:-}
+      ARCHIVE_S3_SECRET_ACCESS_KEY: ${ARCHIVE_S3_SECRET_ACCESS_KEY:-}
+      ARCHIVE_S3_PREFIX: ${ARCHIVE_S3_PREFIX:-transit-history}
+      M2_LOGICAL_CPUS: ${M2_LOGICAL_CPUS:-0}
+      M2_MEMORY_TOTAL_BYTES: ${M2_MEMORY_TOTAL_BYTES:-0}
+      M2_MEMORY_AVAILABLE_BYTES: ${M2_MEMORY_AVAILABLE_BYTES:-0}
+      M2_ROOT_TOTAL_BYTES: ${M2_ROOT_TOTAL_BYTES:-0}
+      M2_ROOT_USED_BYTES: ${M2_ROOT_USED_BYTES:-0}
+      M2_PROJECT_BYTES: ${M2_PROJECT_BYTES:-0}
+      M2_DOCKER_STATS_PATH: /evidence/.docker-stats.jsonl
+    user: "${TRANSIT_CONFIDENCE_UID:-1001}:${TRANSIT_CONFIDENCE_GID:-1001}"
+    volumes:
+      - ${TRANSIT_CONFIDENCE_REPORT_DIR:-/home/ubuntu/artifacts/transit-intelligence/confidence-cohorts}:/evidence
+    networks:
+      - egress
+    restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 256m
+    cpus: 0.2
+
   archive-restore-check:
     profiles: ["maintenance"]
     build:

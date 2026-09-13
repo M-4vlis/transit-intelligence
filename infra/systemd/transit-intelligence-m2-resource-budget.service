@@ -1,0 +1,17 @@
+[Unit]
+Description=Measure Transit Intelligence M2 Free Tier resource budget
+Requires=docker.service
+After=docker.service network-online.target transit-intelligence-confidence-evidence-restore.service
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/apps/transit-intelligence
+ExecStart=/bin/bash infra/scripts/measure_m2_resource_budget.sh
+TimeoutStartSec=15min
+Nice=15
+IOSchedulingClass=idle
+CPUWeight=10
+IOWeight=10
+NoNewPrivileges=true

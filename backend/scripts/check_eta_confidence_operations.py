@@ -9,7 +9,13 @@ from pathlib import Path
 from typing import Any
 
 _COHORT_NAME = re.compile(r"^cohort-(\d{8}T\d{6}Z)\.json$")
-_IMMUTABLE_PREFIXES = ("cohort-", "summary-", "calibration-", "readiness-")
+_IMMUTABLE_PREFIXES = (
+    "cohort-",
+    "summary-",
+    "calibration-",
+    "readiness-",
+    "budget-",
+)
 _CURRENT_EVALUATION_SCHEMA = 2
 _SHADOW_CONTRACT_VERSION = "m2-shadow-v1"
 
