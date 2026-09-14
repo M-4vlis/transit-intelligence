@@ -199,7 +199,7 @@ def test_candidate_confidence_explains_weak_fallback_evidence() -> None:
         match_method=JourneyMatchMethod.ROUTE_SHAPE_PATTERN,
     )
 
-    assert result.score == 25
+    assert result.score == 20
     assert result.band is CandidateConfidenceBand.LOW
     assert result.reasons == (
         "position_older_than_30s",
@@ -208,6 +208,32 @@ def test_candidate_confidence_explains_weak_fallback_evidence() -> None:
         "high_speed_dispersion",
         "route_shape_pattern_match",
     )
+
+
+def test_candidate_confidence_can_rate_strong_fallback_evidence_high() -> None:
+    for method, sample_count in (
+        (EtaMethod.HISTORICAL_SEGMENT_TIME_BAND, 500),
+        (EtaMethod.ROUTE_SHAPE_RECENT_SPEED, 100),
+    ):
+        evidence = EtaEvidence(
+            method=method,
+            sample_count=sample_count,
+            window_seconds=900,
+            speed_p25_mps=4.5,
+            speed_median_mps=5,
+            speed_p75_mps=5.5,
+        )
+
+        result = assess_candidate_confidence(
+            evidence=evidence,
+            position_age_seconds=8,
+            projection_distance_m=10,
+            match_method=JourneyMatchMethod.EXACT_TRIP,
+        )
+
+        assert result.score == 100
+        assert result.band is CandidateConfidenceBand.HIGH
+        assert "fallback_speed_evidence" in result.reasons
 
 
 def test_candidate_confidence_replay_reports_monotonic_error_bands() -> None:
@@ -223,14 +249,14 @@ def test_candidate_confidence_replay_reports_monotonic_error_bands() -> None:
             {
                 "position_recency": 90,
                 "shape_projection": 60,
-                "evidence_method": 72,
+                "sample_support": 72,
             }
         ),
         Counter({"fallback_speed_evidence": 3}),
     )
 
     assert report["calibration_status"] == "uncalibrated"
-    assert report["candidate_version"] == "m2-candidate-v2"
+    assert report["candidate_version"] == "m2-candidate-v3"
     assert report["monotonic_mae"] is True
     assert report["bands"]["high"]["mae_seconds"] == 20
     assert report["bands"]["high"]["interval_coverage"] == 1

@@ -63,6 +63,7 @@ def test_confidence_summary_deduplicates_anchors_and_weights_metrics() -> None:
         "sampling_method": "deterministic_vehicle_hash_v1",
         "evaluation_schema_version": 2,
         "observation_schema_version": 2,
+        "candidate_version": "m2-candidate-v3",
         "cohort_count": 0,
         "local_dates": [],
         "independent_day_count": 0,
@@ -128,6 +129,7 @@ def test_confidence_summary_tracks_rio_dayparts_for_current_sampling() -> None:
         )
         report["evaluation_schema_version"] = 2
         report["calibration_observation_schema_version"] = 2
+        report["candidate_confidence"]["candidate_version"] = "m2-candidate-v3"
         reports.append(report)
 
     summary = summarize_reports(
@@ -169,3 +171,23 @@ def test_confidence_summary_excludes_legacy_timebase_from_calibration() -> None:
         "medium": 0,
         "low": 0,
     }
+
+
+def test_confidence_summary_excludes_previous_candidate_from_calibration() -> None:
+    report = _report(
+        "2026-09-13T10:00:00+00:00",
+        high=(100, 20, 0.8),
+        medium=(100, 40, 0.6),
+        low=(100, 100, 0.2),
+        monotonic=True,
+    )
+    report["parameters"]["sampling_method"] = "deterministic_vehicle_hash_v1"
+    report["evaluation_schema_version"] = 2
+    report["calibration_observation_schema_version"] = 2
+
+    summary = summarize_reports(
+        [report], generated_at=datetime(2026, 9, 13, 11, tzinfo=UTC)
+    )
+
+    assert summary["candidate_versions"] == ["m2-candidate-v2"]
+    assert summary["calibration_coverage"]["cohort_count"] == 0

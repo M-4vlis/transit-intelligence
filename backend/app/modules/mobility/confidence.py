@@ -5,9 +5,9 @@ from enum import StrEnum
 
 from app.modules.mobility.gtfs.models import EtaEvidence, EtaMethod, JourneyMatchMethod
 
-CANDIDATE_CONFIDENCE_VERSION = "m2-candidate-v2"
-_HIGH_BAND_MINIMUM = 90
-_MEDIUM_BAND_MINIMUM = 75
+CANDIDATE_CONFIDENCE_VERSION = "m2-candidate-v3"
+_HIGH_BAND_MINIMUM = 85
+_MEDIUM_BAND_MINIMUM = 65
 
 
 class CandidateConfidenceBand(StrEnum):
@@ -44,14 +44,6 @@ def _projection_score(projection_distance_m: float) -> int:
     return 2
 
 
-def _method_score(method: EtaMethod) -> int:
-    return {
-        EtaMethod.VEHICLE_RECENT_SPEED: 20,
-        EtaMethod.HISTORICAL_SEGMENT_TIME_BAND: 14,
-        EtaMethod.ROUTE_SHAPE_RECENT_SPEED: 8,
-    }[method]
-
-
 def _sample_score(evidence: EtaEvidence) -> int:
     thresholds = {
         EtaMethod.VEHICLE_RECENT_SPEED: (10, 5),
@@ -60,9 +52,9 @@ def _sample_score(evidence: EtaEvidence) -> int:
     }
     strong, moderate = thresholds[evidence.method]
     if evidence.sample_count >= strong:
-        return 15
+        return 20
     if evidence.sample_count >= moderate:
-        return 12
+        return 14
     return 8
 
 
@@ -73,11 +65,11 @@ def _dispersion_score(evidence: EtaEvidence) -> tuple[int, float]:
         / evidence.speed_median_mps,
     )
     if spread_ratio <= 0.25:
-        return 15, spread_ratio
+        return 20, spread_ratio
     if spread_ratio <= 0.5:
-        return 10, spread_ratio
+        return 13, spread_ratio
     if spread_ratio <= 1.0:
-        return 5, spread_ratio
+        return 7, spread_ratio
     return 0, spread_ratio
 
 
@@ -94,10 +86,9 @@ def assess_candidate_confidence(
     components = {
         "position_recency": _recency_score(position_age_seconds),
         "shape_projection": _projection_score(projection_distance_m),
-        "evidence_method": _method_score(evidence.method),
         "sample_support": _sample_score(evidence),
         "speed_dispersion": dispersion,
-        "journey_match": 5 if match_method is JourneyMatchMethod.EXACT_TRIP else 2,
+        "journey_match": 15 if match_method is JourneyMatchMethod.EXACT_TRIP else 5,
     }
     score = sum(components.values())
     band = (

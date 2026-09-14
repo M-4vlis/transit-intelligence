@@ -13,6 +13,7 @@ _BANDS = ("high", "medium", "low")
 _SAMPLING_METHOD = "deterministic_vehicle_hash_v1"
 _EVALUATION_SCHEMA_VERSION = 2
 _OBSERVATION_SCHEMA_VERSION = 2
+_CANDIDATE_VERSION = "m2-candidate-v3"
 _RIO_TZ = ZoneInfo("America/Sao_Paulo")
 _MAXIMUM_ROUTE_SHARE = 0.20
 _MAXIMUM_SPATIAL_CELL_SHARE = 0.50
@@ -53,6 +54,8 @@ def _eligible_reports(reports: list[dict[str, Any]]) -> list[dict[str, Any]]:
             and report.get("evaluation_schema_version") == _EVALUATION_SCHEMA_VERSION
             and report.get("calibration_observation_schema_version")
             == _OBSERVATION_SCHEMA_VERSION
+            and report.get("candidate_confidence", {}).get("candidate_version")
+            == _CANDIDATE_VERSION
             and parameters.get("sampling_method") == _SAMPLING_METHOD
         ):
             unique[anchor] = report
@@ -189,6 +192,7 @@ def build_calibration_report(
             "sampling_method": _SAMPLING_METHOD,
             "evaluation_schema_version": _EVALUATION_SCHEMA_VERSION,
             "observation_schema_version": _OBSERVATION_SCHEMA_VERSION,
+            "candidate_version": _CANDIDATE_VERSION,
             "eligible_cohort_count": len(eligible_reports),
         },
         "coverage": {

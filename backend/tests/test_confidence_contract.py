@@ -22,6 +22,7 @@ def test_shadow_contract_is_versioned_and_fail_closed() -> None:
     )
 
     assert contract.contract_version == SHADOW_CONFIDENCE_CONTRACT_VERSION
+    assert contract.candidate_algorithm_version == "m2-candidate-v3"
     assert contract.publishable is False
     assert contract.publication_state is (
         ConfidencePublicationState.WITHHELD_UNCALIBRATED

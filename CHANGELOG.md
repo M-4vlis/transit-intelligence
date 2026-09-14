@@ -8,6 +8,9 @@
   method concentration, backed by calibration observation schema 2;
 - privacy-preserving 0.025-degree spatial cells in private replay evidence so
   regional bias can be measured without storing exact coordinates;
+- method-neutral `m2-candidate-v3` scoring: evidence source no longer awards
+  points directly, while normalized sample support, dispersion and match quality
+  retain the score's auditable 100-point total;
 - automated daily cold archive, independent full restore check, fail-closed
   preflight and verified seven-day hot retention cycle;
 - low-priority systemd scheduling and explicit CPU/memory bounds for archive

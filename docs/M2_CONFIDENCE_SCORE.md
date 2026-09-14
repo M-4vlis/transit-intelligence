@@ -38,6 +38,13 @@ de 20% em uma linha, mais de 50% em uma célula ou mais de 95% em um método.
 Relatórios schema 1 continuam preservados, mas não são misturados nesta nova
 calibração.
 
+O candidato `m2-candidate-v3` remove a pontuação direta pelo nome do método de
+ETA. Suporte amostral, dispersão e qualidade do casamento passam a usar os vinte
+pontos redistribuídos. Os limiares provisórios de 85/65 foram escolhidos com a
+amostra exploratória do primeiro dia; somente dias posteriores podem validá-los.
+O calibrador filtra explicitamente a versão candidata, impedindo mistura com o
+`m2-candidate-v2` preservado.
+
 O replay também registra cauda de erros acima de cinco minutos, viés, cobertura
 e métricas separadas por método de ETA, forma de casamento e linhas mais
 representadas. Distâncias de projeção dos veículos excluídos ajudam a distinguir

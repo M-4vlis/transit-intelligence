@@ -35,6 +35,7 @@ def _cohort(anchor: datetime, *, observations_per_band: int = 10) -> dict:
             "effective_anchor_at": anchor.isoformat(),
             "sampling_method": "deterministic_vehicle_hash_v1",
         },
+        "candidate_confidence": {"candidate_version": "m2-candidate-v3"},
         "calibration_observations": observations,
     }
 
@@ -108,9 +109,14 @@ def test_calibrator_ignores_legacy_or_non_deterministic_reports() -> None:
     legacy["evaluation_schema_version"] = 1
     biased = _cohort(anchor + timedelta(hours=1))
     biased["parameters"]["sampling_method"] = "lexicographic_v0"
+    previous_candidate = _cohort(anchor + timedelta(hours=2))
+    previous_candidate["candidate_confidence"]["candidate_version"] = (
+        "m2-candidate-v2"
+    )
 
     report = build_calibration_report(
-        [legacy, biased], generated_at=datetime(2026, 9, 1, 12, tzinfo=UTC)
+        [legacy, biased, previous_candidate],
+        generated_at=datetime(2026, 9, 1, 12, tzinfo=UTC),
     )
 
     assert report["source"]["eligible_cohort_count"] == 0
