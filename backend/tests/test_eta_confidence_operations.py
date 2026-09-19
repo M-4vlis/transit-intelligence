@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from pathlib import Path
@@ -86,3 +87,39 @@ def test_operations_report_fails_overdue_tampered_and_unarchived(tmp_path: Path)
     assert "checksum_integrity_failed" in report["failures"]
     assert "archived_evidence_changed" in report["failures"]
     assert "service_failed:cohort" in report["failures"]
+
+
+def test_operations_report_detects_recent_cohort_continuity_gap(tmp_path: Path) -> None:
+    now = datetime(2026, 9, 19, 16, tzinfo=UTC)
+    _fixture(tmp_path, now)
+    older_stamp = (now - timedelta(hours=10)).strftime("%Y%m%dT%H%M%SZ")
+    older = tmp_path / f"cohort-{older_stamp}.json"
+    _write(
+        tmp_path,
+        older.name,
+        '{"evaluation_schema_version":2,'
+        '"shadow_confidence_contract_version":"m2-shadow-v1"}',
+    )
+    state_path = tmp_path / ".object-storage-state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["files"][older.name] = {
+        "sha256": sha256(older.read_bytes()).hexdigest(),
+        "byte_size": older.stat().st_size,
+    }
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+
+    report = build_operations_report(
+        directory=tmp_path,
+        now=now,
+        maximum_cohort_age_hours=5,
+        service_results={
+            "cohort": ("success", 0),
+            "restore": ("success", 0),
+            "resource_budget": ("success", 0),
+        },
+    )
+
+    assert report["status"] == "failed"
+    assert "cohort_continuity_gap" in report["failures"]
+    assert report["cohort_continuity"]["status"] == "gap_detected"
+    assert report["cohort_continuity"]["largest_gap_hours"] == 9

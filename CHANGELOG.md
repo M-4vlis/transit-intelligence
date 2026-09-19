@@ -4,6 +4,10 @@
 
 ### Added
 
+- recent-cohort continuity auditing: the M2 operations monitor now records and
+  fails on gaps longer than five hours inside a rolling 72-hour window, so a
+  host restart cannot hide an observation outage merely by producing one fresh
+  cohort;
 - per-confidence-band diversity gates for route, coarse spatial cell and ETA
   method concentration, backed by calibration observation schema 2;
 - privacy-preserving 0.025-degree spatial cells in private replay evidence so
@@ -34,6 +38,9 @@
 
 ### Fixed
 
+- recovered the ARM64 host after an externally initiated power-off and reboot
+  loop, then allowed the persistent verified-retention timer to archive the
+  missed window and safely restore the seven-day hot-data boundary;
 - cold archive streams a bounded UTC partition in physical scan order instead
   of forcing a multi-million-row database sort that delayed realtime writes;
 - Rio GTFS acquisition now uses the municipality's current public endpoint at

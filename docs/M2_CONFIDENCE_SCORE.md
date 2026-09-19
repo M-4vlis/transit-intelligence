@@ -23,11 +23,12 @@ confiança depois que cada faixa demonstrar esse comportamento em chegadas reais
   observadas;
 - [x] automatizar oito coortes diárias, com relatórios imutáveis, SHA-256 e
   resumo reproduzível;
-- [ ] cobrir pico, entrepico, noite e dias independentes;
-- [ ] garantir pelo menos 50 resultados por faixa que será publicada;
+- [x] cobrir pico, entrepico e noite;
+- [ ] cobrir sete dias independentes na janela de calibração;
+- [x] garantir pelo menos 50 resultados por faixa que será publicada;
 - [ ] demonstrar MAE e P90 monotônicos entre alta, média e baixa confiança;
 - [ ] recalibrar intervalos e medir cobertura por faixa;
-- [ ] verificar que uma linha, região ou método não domina artificialmente uma
+- [x] verificar que uma linha, região ou método não domina artificialmente uma
   faixa.
 
 A observação de calibração schema 2 acrescenta somente uma célula espacial
@@ -70,6 +71,11 @@ Cada coorte gera ainda um `readiness-<UTC>.json`, com checksum e cópia no Objec
 Storage. O relatório combina cobertura, holdout, monotonicidade, cobertura dos
 intervalos, saúde operacional e completude do backup. Seu melhor estado possível
 é `candidate_for_manual_review`; `promotion_authorized` permanece sempre falso.
+
+O monitor operacional também audita continuidade recente. Um intervalo maior
+que cinco horas entre coortes dentro das últimas 72 horas bloqueia a prontidão,
+mesmo que o serviço já tenha reiniciado e produzido uma coorte nova. Isso evita
+que a recuperação do host esconda uma lacuna real na observação.
 
 ### M2.2 — Contrato público
 

@@ -3,8 +3,9 @@ from __future__ import annotations
 import argparse
 import json
 import re
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from hashlib import sha256
+from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
@@ -94,11 +95,60 @@ def _drift(reports: list[dict[str, Any]]) -> dict[str, object]:
     }
 
 
+def _cohort_continuity(
+    cohort_times: list[datetime],
+    *,
+    now: datetime,
+    maximum_gap_hours: float,
+    window_hours: float,
+) -> dict[str, object]:
+    cutoff = now - timedelta(hours=window_hours)
+    past_times = [stamp for stamp in cohort_times if stamp <= now]
+    in_window = [stamp for stamp in past_times if stamp >= cutoff]
+    predecessors = [stamp for stamp in past_times if stamp < cutoff]
+    observed = ([predecessors[-1]] if predecessors else []) + in_window
+    gaps = []
+    for previous, current in pairwise(observed):
+        gap_hours = round((current - previous).total_seconds() / 3600, 3)
+        if gap_hours > maximum_gap_hours:
+            gaps.append(
+                {
+                    "from": previous.isoformat(),
+                    "to": current.isoformat(),
+                    "hours": gap_hours,
+                }
+            )
+    largest_gap = max(
+        (
+            round((current - previous).total_seconds() / 3600, 3)
+            for previous, current in pairwise(observed)
+        ),
+        default=None,
+    )
+    status = (
+        "insufficient_history"
+        if len(observed) < 2
+        else "gap_detected"
+        if gaps
+        else "continuous"
+    )
+    return {
+        "status": status,
+        "window_hours": window_hours,
+        "maximum_gap_hours": maximum_gap_hours,
+        "observed_cohort_count": len(observed),
+        "largest_gap_hours": largest_gap,
+        "gaps": gaps,
+    }
+
+
 def build_operations_report(
     *,
     directory: Path,
     now: datetime,
     maximum_cohort_age_hours: float,
+    maximum_cohort_gap_hours: float = 5,
+    continuity_window_hours: float = 72,
     service_results: dict[str, tuple[str, int]],
 ) -> dict[str, object]:
     now = now.astimezone(UTC)
@@ -125,6 +175,14 @@ def build_operations_report(
         failures.append("no_automated_cohort")
     elif age_hours is not None and age_hours > maximum_cohort_age_hours:
         failures.append("cohort_overdue")
+    continuity = _cohort_continuity(
+        [stamp for stamp, _ in cohorts],
+        now=now,
+        maximum_gap_hours=maximum_cohort_gap_hours,
+        window_hours=continuity_window_hours,
+    )
+    if continuity["status"] == "gap_detected":
+        failures.append("cohort_continuity_gap")
 
     checksum_path = directory / "SHA256SUMS"
     checksum_entries: dict[str, str] = {}
@@ -220,6 +278,7 @@ def build_operations_report(
             "age_hours": age_hours,
             "maximum_age_hours": maximum_cohort_age_hours,
         },
+        "cohort_continuity": continuity,
         "checksums": {
             "immutable_file_count": len(immutable),
             "verified_file_count": len(immutable) - len(checksum_errors),
@@ -240,6 +299,8 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Check M2 confidence operations")
     parser.add_argument("--reports-dir", type=Path, required=True)
     parser.add_argument("--maximum-cohort-age-hours", type=float, default=5)
+    parser.add_argument("--maximum-cohort-gap-hours", type=float, default=5)
+    parser.add_argument("--continuity-window-hours", type=float, default=72)
     parser.add_argument("--cohort-service-result", default="unknown")
     parser.add_argument("--cohort-service-exit-status", type=int, default=0)
     parser.add_argument("--restore-service-result", default="unknown")
@@ -257,6 +318,8 @@ def main() -> None:
         directory=args.reports_dir,
         now=datetime.now(UTC),
         maximum_cohort_age_hours=args.maximum_cohort_age_hours,
+        maximum_cohort_gap_hours=args.maximum_cohort_gap_hours,
+        continuity_window_hours=args.continuity_window_hours,
         service_results={
             "cohort": (
                 args.cohort_service_result,
