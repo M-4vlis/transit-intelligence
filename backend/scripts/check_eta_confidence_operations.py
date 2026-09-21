@@ -309,6 +309,8 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--budget-service-exit-status", type=int, default=0)
     parser.add_argument("--retention-service-result", default="unknown")
     parser.add_argument("--retention-service-exit-status", type=int, default=0)
+    parser.add_argument("--watchdog-service-result", default="unknown")
+    parser.add_argument("--watchdog-service-exit-status", type=int, default=0)
     return parser.parse_args()
 
 
@@ -336,6 +338,10 @@ def main() -> None:
             "verified_retention": (
                 args.retention_service_result,
                 args.retention_service_exit_status,
+            ),
+            "collector_watchdog": (
+                args.watchdog_service_result,
+                args.watchdog_service_exit_status,
             ),
         },
     )

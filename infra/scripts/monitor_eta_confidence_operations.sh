@@ -23,6 +23,8 @@ budget_result="$(unit_value transit-intelligence-m2-resource-budget.service Resu
 budget_status="$(unit_value transit-intelligence-m2-resource-budget.service ExecMainStatus)"
 retention_result="$(unit_value transit-intelligence-verified-retention.service Result)"
 retention_status="$(unit_value transit-intelligence-verified-retention.service ExecMainStatus)"
+watchdog_result="$(unit_value transit-intelligence-collector-watchdog.service Result)"
+watchdog_status="$(unit_value transit-intelligence-collector-watchdog.service ExecMainStatus)"
 
 set +e
 python3 "$ROOT_DIR/backend/scripts/check_eta_confidence_operations.py" \
@@ -34,7 +36,9 @@ python3 "$ROOT_DIR/backend/scripts/check_eta_confidence_operations.py" \
   --budget-service-result "$budget_result" \
   --budget-service-exit-status "${budget_status:-0}" \
   --retention-service-result "$retention_result" \
-  --retention-service-exit-status "${retention_status:-0}" >"$temporary"
+  --retention-service-exit-status "${retention_status:-0}" \
+  --watchdog-service-result "$watchdog_result" \
+  --watchdog-service-exit-status "${watchdog_status:-0}" >"$temporary"
 result=$?
 set -e
 mv "$temporary" "$output"
