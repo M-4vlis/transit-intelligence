@@ -14,6 +14,23 @@ coleta enquanto o host está ligado. Ele não consegue avisar quando a própria
 VPS está desligada; para isso é obrigatório um alarme externo da OCI ou outro
 monitor fora da instância.
 
+## Alarme externo da OCI
+
+O monitor externo foi ativado em 20/09/2026 sem depender da VPS:
+
+- tópico: `transit-intelligence-ops-email`;
+- alarme: `Transit VPS telemetry absent`;
+- namespace: `oci_computeagent`;
+- sinal: ausência de `CpuUtilization` agrupada pelo identificador da instância;
+- persistência exigida: dez minutos;
+- severidade: `CRITICAL`;
+- repetição enquanto ativo: a cada 24 horas;
+- assinatura: e-mail confirmado e ativo, sem endereço armazenado no repositório.
+
+O alarme cobre host desligado, agente sem telemetria e perda ampla de
+conectividade. O watchdog local continua sendo a verificação mais rápida para
+falhas do coletor com a VPS ligada.
+
 ## Object Storage
 
 O orçamento diário mede o prefixo real e usa quatro níveis:
