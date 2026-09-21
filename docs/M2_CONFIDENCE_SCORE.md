@@ -24,7 +24,8 @@ confiança depois que cada faixa demonstrar esse comportamento em chegadas reais
 - [x] automatizar oito coortes diárias, com relatórios imutáveis, SHA-256 e
   resumo reproduzível;
 - [x] cobrir pico, entrepico e noite;
-- [ ] cobrir sete dias independentes na janela de calibração;
+- [x] cobrir sete dias independentes com o candidato v3;
+- [ ] cobrir quatorze dias independentes com o candidato v4;
 - [x] garantir pelo menos 50 resultados por faixa que será publicada;
 - [ ] demonstrar MAE e P90 monotônicos entre alta, média e baixa confiança;
 - [ ] recalibrar intervalos e medir cobertura por faixa;
@@ -39,12 +40,19 @@ de 20% em uma linha, mais de 50% em uma célula ou mais de 95% em um método.
 Relatórios schema 1 continuam preservados, mas não são misturados nesta nova
 calibração.
 
-O candidato `m2-candidate-v3` remove a pontuação direta pelo nome do método de
+O candidato `m2-candidate-v3` removeu a pontuação direta pelo nome do método de
 ETA. Suporte amostral, dispersão e qualidade do casamento passam a usar os vinte
 pontos redistribuídos. Os limiares provisórios de 85/65 foram escolhidos com a
 amostra exploratória do primeiro dia; somente dias posteriores podem validá-los.
 O calibrador filtra explicitamente a versão candidata, impedindo mistura com o
 `m2-candidate-v2` preservado.
+
+O `m2-candidate-v4` mantém essa neutralidade e acrescenta um fator ausente no
+v3: o horizonte da própria previsão. ETAs de até 3 minutos não sofrem redução;
+de 3 a 6, de 6 a 10 e acima de 10 minutos recebem penalidades de 10, 20 e 30
+pontos. As faixas provisórias passam a 79/65. A política foi fixada usando apenas
+os cinco primeiros dias do v3. Os relatórios v2 e v3 permanecem imutáveis e não
+são misturados com a nova observação schema 3.
 
 O replay também registra cauda de erros acima de cinco minutos, viés, cobertura
 e métricas separadas por método de ETA, forma de casamento e linhas mais
@@ -63,9 +71,18 @@ intervalo, método e fatores técnicos, mas omite veículo, viagem, shape e para
 O calibrador offline separa os dois dias mais recentes como holdout e nunca
 autoriza promoção automática.
 
-O contrato `m2-shadow-v1` já materializa, somente nas observações privadas, o
+O contrato `m2-shadow-v2` materializa, somente nas observações privadas, o
 nível candidato, a janela de chegada e os motivos explicáveis. Ele traz
 `publishable=false` por construção e não faz parte do schema da API pública.
+Quando existir uma calibração v4 aprovada para revisão manual, o replay seguinte
+usa seus offsets por faixa e marca explicitamente a janela como
+`calibrated_candidate`. Na ausência dela, continua usando a janela nativa e
+falha fechado como `uncalibrated`.
+
+O gate v4 exige 14 dias independentes, reserva os três mais recentes como
+holdout, cobra monotonicidade de MAE e P90 em pelo menos 70% dos dias elegíveis,
+cobertura mínima de 70% por faixa e no máximo 10% de erros acima de cinco
+minutos na faixa alta. Nenhum desses resultados autoriza promoção automática.
 
 Cada coorte gera ainda um `readiness-<UTC>.json`, com checksum e cópia no Object
 Storage. O relatório combina cobertura, holdout, monotonicidade, cobertura dos

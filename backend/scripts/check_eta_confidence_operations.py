@@ -18,7 +18,7 @@ _IMMUTABLE_PREFIXES = (
     "budget-",
 )
 _CURRENT_EVALUATION_SCHEMA = 2
-_SHADOW_CONTRACT_VERSION = "m2-shadow-v1"
+_SHADOW_CONTRACT_VERSION = "m2-shadow-v2"
 
 
 def _digest(path: Path) -> str:

@@ -1,0 +1,15 @@
+[Unit]
+Description=Check Transit Intelligence realtime collector freshness
+Requires=docker.service
+After=docker.service network-online.target
+ConditionPathExists=/home/ubuntu/apps/transit-intelligence/.env.production
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/apps/transit-intelligence
+ExecStart=/bin/bash infra/scripts/check_collector_freshness.sh
+TimeoutStartSec=30s
+Nice=10
+NoNewPrivileges=true

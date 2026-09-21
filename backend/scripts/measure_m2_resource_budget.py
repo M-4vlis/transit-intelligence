@@ -14,6 +14,8 @@ _BYTES_PER_GIB = 1024**3
 _FREE_COMPUTE_OCPUS = 2
 _FREE_COMPUTE_MEMORY_BYTES = 12 * _BYTES_PER_GIB
 _CONSERVATIVE_OBJECT_STORAGE_BYTES = 10_000_000_000
+_ELEVATED_OBJECT_STORAGE_BYTES = 15_000_000_000
+_HARD_GUARD_OBJECT_STORAGE_BYTES = 18_000_000_000
 _FREE_OBJECT_STORAGE_BYTES = 20_000_000_000
 _FREE_OBJECT_REQUESTS_PER_MONTH = 50_000
 _OPERATIONAL_REQUEST_BUDGET = 30_000
@@ -118,6 +120,7 @@ def build_resource_budget_report(
     projected_m2_requests = archive_requests + restore_requests
     cpu_peak = round(sum(float(item["cpu_percent"]) for item in containers), 3)
     memory_used = sum(int(item["memory_used_bytes"]) for item in containers)
+    current_storage_bytes = object_storage["byte_size"]
     checks = {
         "compute_shape_within_always_free": host["logical_cpus"] <= _FREE_COMPUTE_OCPUS
         and host["memory_total_bytes"] <= _FREE_COMPUTE_MEMORY_BYTES,
@@ -125,6 +128,14 @@ def build_resource_budget_report(
         "root_filesystem_below_80_percent": host["root_used_bytes"]
         <= host["root_total_bytes"] * 0.8,
         "project_files_below_10_gib": host["project_bytes"] <= 10 * _BYTES_PER_GIB,
+        "actual_object_storage_below_10_gb": current_storage_bytes
+        <= _CONSERVATIVE_OBJECT_STORAGE_BYTES,
+        "actual_object_storage_below_15_gb": current_storage_bytes
+        <= _ELEVATED_OBJECT_STORAGE_BYTES,
+        "actual_object_storage_below_18_gb_hard_guard": current_storage_bytes
+        <= _HARD_GUARD_OBJECT_STORAGE_BYTES,
+        "actual_object_storage_below_free_tier": current_storage_bytes
+        <= _FREE_OBJECT_STORAGE_BYTES,
         "projected_object_storage_below_10_gb": projected_storage_bytes
         <= _CONSERVATIVE_OBJECT_STORAGE_BYTES,
         "projected_object_storage_below_free_tier": projected_storage_bytes
@@ -136,7 +147,11 @@ def build_resource_budget_report(
         "instant_container_cpu_below_150_percent": cpu_peak < 150,
         "container_memory_below_8_gib": memory_used < 8 * _BYTES_PER_GIB,
     }
-    warning_checks = {"projected_object_storage_below_10_gb"}
+    warning_checks = {
+        "actual_object_storage_below_10_gb",
+        "actual_object_storage_below_15_gb",
+        "projected_object_storage_below_10_gb",
+    }
     failures = [
         name for name, passed in checks.items() if not passed and name not in warning_checks
     ]
@@ -157,7 +172,29 @@ def build_resource_budget_report(
         "object_storage": {
             **object_storage,
             "projected_bytes_after_30_days": projected_storage_bytes,
+            "estimated_days_until_10_gb": max(
+                0,
+                (_CONSERVATIVE_OBJECT_STORAGE_BYTES - current_storage_bytes)
+                // max(average_complete_parquet_size, 1),
+            ),
+            "estimated_days_until_15_gb": max(
+                0,
+                (_ELEVATED_OBJECT_STORAGE_BYTES - current_storage_bytes)
+                // max(average_complete_parquet_size, 1),
+            ),
+            "estimated_days_until_18_gb_hard_guard": max(
+                0,
+                (_HARD_GUARD_OBJECT_STORAGE_BYTES - current_storage_bytes)
+                // max(average_complete_parquet_size, 1),
+            ),
+            "estimated_days_until_free_tier": max(
+                0,
+                (_FREE_OBJECT_STORAGE_BYTES - current_storage_bytes)
+                // max(average_complete_parquet_size, 1),
+            ),
             "conservative_storage_limit_bytes": _CONSERVATIVE_OBJECT_STORAGE_BYTES,
+            "elevated_storage_limit_bytes": _ELEVATED_OBJECT_STORAGE_BYTES,
+            "hard_guard_storage_limit_bytes": _HARD_GUARD_OBJECT_STORAGE_BYTES,
             "free_tier_storage_limit_bytes": _FREE_OBJECT_STORAGE_BYTES,
             "projected_m2_api_requests_per_month": projected_m2_requests,
             "operational_request_budget": _OPERATIONAL_REQUEST_BUDGET,

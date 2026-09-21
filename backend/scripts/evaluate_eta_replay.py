@@ -6,6 +6,7 @@ import json
 from collections import Counter, defaultdict
 from datetime import UTC, datetime, timedelta
 from math import floor
+from pathlib import Path
 from typing import Any
 
 from app.core.config import settings
@@ -24,7 +25,7 @@ from app.modules.mobility.models import VehiclePosition
 from app.modules.mobility.operational_status import classify_unmatched_vehicle
 
 EVALUATION_SCHEMA_VERSION = 2
-CALIBRATION_OBSERVATION_SCHEMA_VERSION = 2
+CALIBRATION_OBSERVATION_SCHEMA_VERSION = 3
 _CALIBRATION_SPATIAL_GRID_DEGREES = 0.025
 
 
@@ -49,6 +50,11 @@ def _parse_args() -> argparse.Namespace:
         help="Fixed ISO-8601 anchor end for reproducible comparisons.",
     )
     parser.add_argument("--without-historical-profiles", action="store_true")
+    parser.add_argument(
+        "--calibration-report",
+        type=Path,
+        help="Previous guarded calibration report used only by the shadow contract.",
+    )
     args = parser.parse_args()
     if args.anchor_age_minutes < args.outcome_horizon_minutes:
         parser.error("anchor age must cover the complete outcome horizon")
@@ -63,6 +69,32 @@ def _parse_args() -> argparse.Namespace:
     if args.min_outcomes not in range(1, args.max_samples + 1):
         parser.error("min outcomes must be between 1 and max samples")
     return args
+
+
+def _load_calibrated_offsets(
+    path: Path | None,
+) -> tuple[str, dict[str, tuple[float, float]]]:
+    if path is None or not path.is_file():
+        return "uncalibrated", {}
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    source = payload.get("source", {})
+    candidate = payload.get("calibration_candidate")
+    if (
+        payload.get("status") != "candidate_for_manual_review"
+        or source.get("candidate_version") != CANDIDATE_CONFIDENCE_VERSION
+        or not isinstance(candidate, dict)
+    ):
+        return "uncalibrated", {}
+    raw_offsets = candidate.get("proposed_interval_offsets_seconds", {})
+    offsets: dict[str, tuple[float, float]] = {}
+    for band in CandidateConfidenceBand:
+        values = raw_offsets.get(band.value, {})
+        lower = values.get("lower_seconds")
+        upper = values.get("upper_seconds")
+        if lower is None or upper is None or float(lower) > float(upper):
+            return "uncalibrated", {}
+        offsets[band.value] = (float(lower), float(upper))
+    return "candidate_for_manual_review", offsets
 
 
 def _percentile(values: list[float], quantile: float) -> float | None:
@@ -158,6 +190,7 @@ def _speed_diagnostics(values: list[float]) -> dict[str, int | float | None]:
 def _candidate_confidence_report(
     errors_by_band: dict[str, list[float]],
     interval_hits_by_band: Counter[str],
+    native_interval_hits_by_band: Counter[str],
     scores: list[int],
     component_totals: Counter[str],
     reason_counts: Counter[str],
@@ -177,6 +210,11 @@ def _candidate_confidence_report(
             "error_p90_seconds": round(p90, 3) if p90 is not None else None,
             "interval_coverage": (
                 round(interval_hits_by_band[band.value] / count, 4)
+                if count
+                else None
+            ),
+            "native_interval_coverage": (
+                round(native_interval_hits_by_band[band.value] / count, 4)
                 if count
                 else None
             ),
@@ -301,6 +339,9 @@ async def _run(
     *,
     database_url: str | None = None,
 ) -> dict[str, object]:
+    calibration_status, calibrated_offsets = _load_calibrated_offsets(
+        getattr(args, "calibration_report", None)
+    )
     pool = await create_postgres_pool(database_url or settings.database_url, command_timeout=None)
     reasons: Counter[str] = Counter()
     methods: Counter[str] = Counter()
@@ -310,6 +351,7 @@ async def _run(
     interval_hits = 0
     confidence_errors: dict[str, list[float]] = defaultdict(list)
     confidence_interval_hits: Counter[str] = Counter()
+    native_confidence_interval_hits: Counter[str] = Counter()
     confidence_scores: list[int] = []
     confidence_component_totals: Counter[str] = Counter()
     confidence_reason_counts: Counter[str] = Counter()
@@ -394,13 +436,17 @@ async def _run(
                     position_age_seconds=match.position_age_seconds or 0,
                     projection_distance_m=match.projection_distance_m or 0,
                     match_method=match.match_method,
+                    predicted_eta_seconds=predicted_eta_seconds,
                 )
                 shadow_confidence = build_shadow_confidence_contract(
                     candidate=confidence,
-                    calibration_status="uncalibrated",
+                    calibration_status=calibration_status,
                     estimated_eta_seconds=stop.eta_seconds,
                     lower_eta_seconds=stop.eta_lower_seconds,
                     upper_eta_seconds=stop.eta_upper_seconds,
+                    calibrated_offsets_seconds=calibrated_offsets.get(
+                        confidence.band.value
+                    ),
                 )
                 confidence_errors[confidence.band.value].append(absolute_error)
                 confidence_scores.append(confidence.score)
@@ -413,6 +459,13 @@ async def _run(
                     <= actual_eta_seconds
                     <= stop.eta_upper_seconds
                 )
+                shadow_window = shadow_confidence.arrival_window_seconds
+                shadow_interval_hit = bool(
+                    shadow_window
+                    and shadow_window.lower
+                    <= actual_eta_seconds
+                    <= shadow_window.upper
+                )
                 calibration_observations.append(
                     {
                         "score": confidence.score,
@@ -423,7 +476,9 @@ async def _run(
                         "actual_eta_seconds": round(actual_eta_seconds, 3),
                         "eta_lower_seconds": stop.eta_lower_seconds,
                         "eta_upper_seconds": stop.eta_upper_seconds,
-                        "interval_hit": interval_hit,
+                        "interval_hit": shadow_interval_hit,
+                        "native_interval_hit": interval_hit,
+                        "shadow_interval_hit": shadow_interval_hit,
                         "eta_method": method,
                         "match_method": match_method,
                         "route_id": position.route_id,
@@ -449,10 +504,12 @@ async def _run(
                 )
                 if interval_hit:
                     interval_hits += 1
-                    confidence_interval_hits[confidence.band.value] += 1
+                    native_confidence_interval_hits[confidence.band.value] += 1
                     interval_hits_by_method[method] += 1
                     interval_hits_by_match_method[match_method] += 1
                     interval_hits_by_route[position.route_id] += 1
+                if shadow_interval_hit:
+                    confidence_interval_hits[confidence.band.value] += 1
     finally:
         await pool.close()
 
@@ -464,6 +521,11 @@ async def _run(
         ),
         "calibration_spatial_grid_degrees": _CALIBRATION_SPATIAL_GRID_DEGREES,
         "shadow_confidence_contract_version": SHADOW_CONFIDENCE_CONTRACT_VERSION,
+        "shadow_interval_calibration": {
+            "status": calibration_status,
+            "candidate_version": CANDIDATE_CONFIDENCE_VERSION,
+            "bands": sorted(calibrated_offsets),
+        },
         "status": (
             "sufficient_data" if outcome_count >= args.min_outcomes else "insufficient_data"
         ),
@@ -534,6 +596,7 @@ async def _run(
         "candidate_confidence": _candidate_confidence_report(
             confidence_errors,
             confidence_interval_hits,
+            native_confidence_interval_hits,
             confidence_scores,
             confidence_component_totals,
             confidence_reason_counts,

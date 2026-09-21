@@ -37,9 +37,10 @@ docker compose \
   --outcome-horizon-minutes 20 \
   --stop-radius-m 75 \
   --max-samples 200 \
-  --min-outcomes 20 >"$report_tmp"
+  --min-outcomes 20 \
+  --calibration-report /evidence/calibration-latest.json >"$report_tmp"
 
-python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); assert d["candidate_confidence"]["calibration_status"] == "uncalibrated"' "$report_tmp"
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); assert d["candidate_confidence"]["calibration_status"] in {"uncalibrated","candidate_for_manual_review"}; assert all(not o["shadow_confidence"]["publishable"] for o in d["calibration_observations"])' "$report_tmp"
 mv "$report_tmp" "$report"
 sha256sum "$report" >>"$REPORT_DIR/SHA256SUMS"
 

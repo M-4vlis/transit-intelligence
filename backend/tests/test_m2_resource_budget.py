@@ -94,3 +94,31 @@ def test_resource_budget_warns_before_reaching_free_storage_limit() -> None:
     assert report["failures"] == []
     assert report["warnings"] == ["projected_object_storage_below_10_gb"]
     assert report["checks"]["projected_object_storage_below_free_tier"] is True
+
+
+def test_resource_budget_hard_fails_at_18_gb_before_free_tier() -> None:
+    report = build_resource_budget_report(
+        generated_at=datetime(2026, 9, 13, tzinfo=UTC),
+        host={
+            "logical_cpus": 2,
+            "memory_total_bytes": 12 * 1024**3,
+            "memory_available_bytes": 8 * 1024**3,
+            "root_total_bytes": 100 * 1024**3,
+            "root_used_bytes": 40 * 1024**3,
+            "project_bytes": 1024**3,
+        },
+        containers=[],
+        object_storage={
+            "object_count": 40,
+            "byte_size": 18_500_000_000,
+            "m2_evidence_object_count": 30,
+            "m2_evidence_bytes": 300_000,
+            "complete_parquet_object_count": 30,
+            "complete_parquet_bytes": 11_400_000_000,
+        },
+    )
+
+    assert report["status"] == "failed"
+    assert "actual_object_storage_below_18_gb_hard_guard" in report["failures"]
+    assert "actual_object_storage_below_10_gb" in report["warnings"]
+    assert "actual_object_storage_below_15_gb" in report["warnings"]

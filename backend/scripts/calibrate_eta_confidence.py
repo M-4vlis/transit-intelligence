@@ -12,14 +12,18 @@ from zoneinfo import ZoneInfo
 _BANDS = ("high", "medium", "low")
 _SAMPLING_METHOD = "deterministic_vehicle_hash_v1"
 _EVALUATION_SCHEMA_VERSION = 2
-_OBSERVATION_SCHEMA_VERSION = 2
-_CANDIDATE_VERSION = "m2-candidate-v3"
+_OBSERVATION_SCHEMA_VERSION = 3
+_CANDIDATE_VERSION = "m2-candidate-v4"
 _RIO_TZ = ZoneInfo("America/Sao_Paulo")
 _MAXIMUM_ROUTE_SHARE = 0.20
 _MAXIMUM_SPATIAL_CELL_SHARE = 0.50
 _MAXIMUM_ETA_METHOD_SHARE = 0.95
 _MINIMUM_ROUTES_PER_BAND = 10
 _MINIMUM_SPATIAL_CELLS_PER_BAND = 3
+_MINIMUM_INDEPENDENT_DAYS = 14
+_HOLDOUT_DAY_COUNT = 3
+_MINIMUM_DAILY_BAND_OUTCOMES = 10
+_MINIMUM_MONOTONIC_DAY_RATE = 0.70
 
 
 def _percentile(values: list[float], quantile: float) -> float | None:
@@ -82,6 +86,7 @@ def _band_metrics(observations: list[dict[str, Any]]) -> dict[str, object]:
     absolute_errors = [abs(value) for value in signed_errors]
     residuals = [-value for value in signed_errors]
     count = len(observations)
+    error_over_300_count = sum(value > 300 for value in absolute_errors)
     return {
         "outcome_count": count,
         "mae_seconds": (
@@ -102,6 +107,63 @@ def _band_metrics(observations: list[dict[str, Any]]) -> dict[str, object]:
             if (value := _percentile(residuals, 0.9)) is not None
             else None
         ),
+        "error_over_300_seconds_count": error_over_300_count,
+        "error_over_300_seconds_rate": (
+            round(error_over_300_count / count, 4) if count else None
+        ),
+    }
+
+
+def _daily_stability(
+    observations: list[tuple[str, str, dict[str, Any]]],
+) -> dict[str, object]:
+    dates = sorted({date for date, _, _ in observations})
+    eligible = 0
+    monotonic_mae = 0
+    monotonic_p90 = 0
+    daily: dict[str, object] = {}
+    for date in dates:
+        bands = {
+            band: [
+                item
+                for item_date, _, item in observations
+                if item_date == date and item.get("candidate_band") == band
+            ]
+            for band in _BANDS
+        }
+        metrics = {band: _band_metrics(bands[band]) for band in _BANDS}
+        day_eligible = all(
+            len(bands[band]) >= _MINIMUM_DAILY_BAND_OUTCOMES for band in _BANDS
+        )
+        mae_passed = bool(
+            day_eligible
+            and metrics["high"]["mae_seconds"]
+            <= metrics["medium"]["mae_seconds"]
+            <= metrics["low"]["mae_seconds"]
+        )
+        p90_passed = bool(
+            day_eligible
+            and metrics["high"]["error_p90_seconds"]
+            <= metrics["medium"]["error_p90_seconds"]
+            <= metrics["low"]["error_p90_seconds"]
+        )
+        eligible += int(day_eligible)
+        monotonic_mae += int(mae_passed)
+        monotonic_p90 += int(p90_passed)
+        daily[date] = {
+            "eligible": day_eligible,
+            "monotonic_mae": mae_passed,
+            "monotonic_p90": p90_passed,
+            "band_outcomes": {band: len(bands[band]) for band in _BANDS},
+        }
+    return {
+        "minimum_band_outcomes_per_day": _MINIMUM_DAILY_BAND_OUTCOMES,
+        "eligible_day_count": eligible,
+        "monotonic_mae_day_count": monotonic_mae,
+        "monotonic_p90_day_count": monotonic_p90,
+        "monotonic_mae_day_rate": round(monotonic_mae / eligible, 4) if eligible else 0,
+        "monotonic_p90_day_rate": round(monotonic_p90 / eligible, 4) if eligible else 0,
+        "days": daily,
     }
 
 
@@ -152,9 +214,10 @@ def build_calibration_report(
     diversity_by_band = {
         band: _band_diversity(observations_by_band[band]) for band in _BANDS
     }
+    daily_stability = _daily_stability(observations)
     all_dayparts = {"morning_peak", "interpeak", "evening_peak", "night"}
     gates = {
-        "seven_independent_days": len(dates) >= 7,
+        "fourteen_independent_days": len(dates) >= _MINIMUM_INDEPENDENT_DAYS,
         "all_dayparts": all(dayparts[name] > 0 for name in all_dayparts),
         "minimum_50_outcomes_per_band": all(bands[band] >= 50 for band in _BANDS),
         "maximum_single_route_share_20_percent": maximum_route_share <= 0.2,
@@ -182,6 +245,14 @@ def build_calibration_report(
             <= _MAXIMUM_ETA_METHOD_SHARE
             for band in _BANDS
         ),
+        "minimum_70_percent_monotonic_days_mae": (
+            float(daily_stability["monotonic_mae_day_rate"])
+            >= _MINIMUM_MONOTONIC_DAY_RATE
+        ),
+        "minimum_70_percent_monotonic_days_p90": (
+            float(daily_stability["monotonic_p90_day_rate"])
+            >= _MINIMUM_MONOTONIC_DAY_RATE
+        ),
     }
     result: dict[str, object] = {
         "schema_version": 1,
@@ -207,6 +278,7 @@ def build_calibration_report(
             "route_count": len(routes),
             "maximum_single_route_share": round(maximum_route_share, 4),
             "diversity_by_band": diversity_by_band,
+            "daily_stability": daily_stability,
         },
         "gates": gates,
         "calibration_candidate": None,
@@ -214,7 +286,7 @@ def build_calibration_report(
     if not all(gates.values()):
         return result
 
-    heldout_dates = set(dates[-2:])
+    heldout_dates = set(dates[-_HOLDOUT_DAY_COUNT:])
     training = [item for date, _, item in observations if date not in heldout_dates]
     heldout = [item for date, _, item in observations if date in heldout_dates]
     training_bands = {
@@ -267,6 +339,11 @@ def build_calibration_report(
         <= heldout_metrics["medium"]["mae_seconds"]
         <= heldout_metrics["low"]["mae_seconds"]
     )
+    monotonic_heldout_p90 = (
+        heldout_metrics["high"]["error_p90_seconds"]
+        <= heldout_metrics["medium"]["error_p90_seconds"]
+        <= heldout_metrics["low"]["error_p90_seconds"]
+    )
     result["status"] = "candidate_for_manual_review"
     result["calibration_candidate"] = {
         "training_dates": [date for date in dates if date not in heldout_dates],
@@ -278,6 +355,7 @@ def build_calibration_report(
         "proposed_interval_offsets_seconds": interval_offsets,
         "heldout_interval_coverage": heldout_coverage,
         "heldout_monotonic_mae": monotonic_heldout_mae,
+        "heldout_monotonic_p90": monotonic_heldout_p90,
     }
     return result
 

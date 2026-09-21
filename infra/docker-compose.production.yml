@@ -620,6 +620,8 @@ services:
     entrypoint: ["python", "scripts/evaluate_eta_replay.py"]
     environment:
       <<: *app-environment
+    volumes:
+      - ${TRANSIT_CONFIDENCE_REPORT_DIR:-/home/ubuntu/artifacts/transit-intelligence/confidence-cohorts}:/evidence:ro
     networks:
       - data
     depends_on:

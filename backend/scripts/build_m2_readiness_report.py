@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 _MINIMUM_HELDOUT_INTERVAL_COVERAGE = 0.70
+_MAXIMUM_HIGH_ERROR_OVER_300_RATE = 0.10
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -34,6 +35,10 @@ def build_readiness_report(
         calibration_candidate
         and calibration_candidate.get("heldout_monotonic_mae") is True
     )
+    heldout_p90_monotonic = bool(
+        calibration_candidate
+        and calibration_candidate.get("heldout_monotonic_p90") is True
+    )
     heldout_coverage = (
         calibration_candidate.get("heldout_interval_coverage", {})
         if calibration_candidate
@@ -46,6 +51,18 @@ def build_readiness_report(
             for value in heldout_coverage.values()
         )
     )
+    heldout_metrics = (
+        calibration_candidate.get("heldout_band_metrics", {})
+        if calibration_candidate
+        else {}
+    )
+    high_tail_rate = heldout_metrics.get("high", {}).get(
+        "error_over_300_seconds_rate"
+    )
+    high_tail_sufficient = bool(
+        high_tail_rate is not None
+        and float(high_tail_rate) <= _MAXIMUM_HIGH_ERROR_OVER_300_RATE
+    )
     archive = operations.get("object_storage_archive", {})
     checks = {
         "operations_healthy": operations.get("status") != "failed",
@@ -54,7 +71,9 @@ def build_readiness_report(
         == "candidate_for_manual_review"
         and calibration_candidate is not None,
         "heldout_mae_is_monotonic": heldout_monotonic,
+        "heldout_p90_is_monotonic": heldout_p90_monotonic,
         "heldout_interval_coverage_at_least_70_percent": coverage_sufficient,
+        "heldout_high_error_over_300_at_most_10_percent": high_tail_sufficient,
         "object_storage_archive_complete": not archive.get("missing_files")
         and not archive.get("changed_files"),
         "automatic_promotion_disabled": calibration.get("promotion_authorized") is False,
@@ -89,6 +108,9 @@ def build_readiness_report(
         "policy": {
             "minimum_heldout_interval_coverage": (
                 _MINIMUM_HELDOUT_INTERVAL_COVERAGE
+            ),
+            "maximum_heldout_high_error_over_300_rate": (
+                _MAXIMUM_HIGH_ERROR_OVER_300_RATE
             ),
             "public_contract_requires_separate_manual_decision": True,
         },

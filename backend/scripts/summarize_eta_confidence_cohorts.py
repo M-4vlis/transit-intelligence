@@ -11,8 +11,8 @@ from zoneinfo import ZoneInfo
 _BANDS = ("high", "medium", "low")
 _CURRENT_SAMPLING_METHOD = "deterministic_vehicle_hash_v1"
 _CURRENT_EVALUATION_SCHEMA_VERSION = 2
-_CURRENT_OBSERVATION_SCHEMA_VERSION = 2
-_CURRENT_CANDIDATE_VERSION = "m2-candidate-v3"
+_CURRENT_OBSERVATION_SCHEMA_VERSION = 3
+_CURRENT_CANDIDATE_VERSION = "m2-candidate-v4"
 _RIO_TZ = ZoneInfo("America/Sao_Paulo")
 
 
@@ -136,6 +136,7 @@ def summarize_reports(
             band: calibration_band_outcomes[band] for band in _BANDS
         },
         "seven_day_coverage_met": len(calibration_dates) >= 7,
+        "fourteen_day_coverage_met": len(calibration_dates) >= 14,
         "all_dayparts_met": all(calibration_dayparts[name] > 0 for name in all_dayparts),
         "minimum_50_outcomes_per_band_met": all(
             calibration_band_outcomes[band] >= 50 for band in _BANDS

@@ -5,8 +5,8 @@ from enum import StrEnum
 
 from app.modules.mobility.gtfs.models import EtaEvidence, EtaMethod, JourneyMatchMethod
 
-CANDIDATE_CONFIDENCE_VERSION = "m2-candidate-v3"
-_HIGH_BAND_MINIMUM = 85
+CANDIDATE_CONFIDENCE_VERSION = "m2-candidate-v4"
+_HIGH_BAND_MINIMUM = 79
 _MEDIUM_BAND_MINIMUM = 65
 
 
@@ -73,12 +73,25 @@ def _dispersion_score(evidence: EtaEvidence) -> tuple[int, float]:
     return 0, spread_ratio
 
 
+def _horizon_penalty(predicted_eta_seconds: float) -> int:
+    """Penalize uncertainty growth without encoding the ETA method itself."""
+
+    if predicted_eta_seconds <= 180:
+        return 0
+    if predicted_eta_seconds <= 360:
+        return 10
+    if predicted_eta_seconds <= 600:
+        return 20
+    return 30
+
+
 def assess_candidate_confidence(
     *,
     evidence: EtaEvidence,
     position_age_seconds: float,
     projection_distance_m: float,
     match_method: JourneyMatchMethod | None,
+    predicted_eta_seconds: float,
 ) -> CandidateConfidence:
     """Produce an internal, explicitly uncalibrated confidence candidate."""
 
@@ -90,7 +103,9 @@ def assess_candidate_confidence(
         "speed_dispersion": dispersion,
         "journey_match": 15 if match_method is JourneyMatchMethod.EXACT_TRIP else 5,
     }
-    score = sum(components.values())
+    horizon_penalty = _horizon_penalty(predicted_eta_seconds)
+    components["prediction_horizon_penalty"] = -horizon_penalty
+    score = max(0, min(100, sum(components.values())))
     band = (
         CandidateConfidenceBand.HIGH
         if score >= _HIGH_BAND_MINIMUM
@@ -109,6 +124,14 @@ def assess_candidate_confidence(
         reasons.append("high_speed_dispersion")
     if match_method is not JourneyMatchMethod.EXACT_TRIP:
         reasons.append("route_shape_pattern_match")
+    if horizon_penalty:
+        reasons.append(
+            "eta_horizon_over_10m"
+            if predicted_eta_seconds > 600
+            else "eta_horizon_over_6m"
+            if predicted_eta_seconds > 360
+            else "eta_horizon_over_3m"
+        )
     return CandidateConfidence(
         score=score,
         band=band,

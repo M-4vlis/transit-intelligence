@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- Added the horizon-aware, method-neutral `m2-candidate-v4` and preserved older
+  immutable cohorts outside its calibration set.
+- Added guarded calibrated arrival windows to the private `m2-shadow-v2`
+  contract; public API exposure remains impossible.
+- Strengthened calibration with 14 independent days, a three-day holdout,
+  daily MAE/P90 monotonicity, interval coverage and high-band tail-error gates.
+- Added a three-minute collector freshness watchdog and Object Storage warning
+  levels at 10/15 GB with an 18 GB hard guard.
+
 ## Unreleased — M2
 
 ### Added

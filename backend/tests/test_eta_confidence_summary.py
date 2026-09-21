@@ -62,8 +62,8 @@ def test_confidence_summary_deduplicates_anchors_and_weights_metrics() -> None:
     assert summary["calibration_coverage"] == {
         "sampling_method": "deterministic_vehicle_hash_v1",
         "evaluation_schema_version": 2,
-        "observation_schema_version": 2,
-        "candidate_version": "m2-candidate-v3",
+        "observation_schema_version": 3,
+        "candidate_version": "m2-candidate-v4",
         "cohort_count": 0,
         "local_dates": [],
         "independent_day_count": 0,
@@ -75,6 +75,7 @@ def test_confidence_summary_deduplicates_anchors_and_weights_metrics() -> None:
         },
         "band_outcomes": {"high": 0, "medium": 0, "low": 0},
         "seven_day_coverage_met": False,
+        "fourteen_day_coverage_met": False,
         "all_dayparts_met": False,
         "minimum_50_outcomes_per_band_met": False,
     }
@@ -128,8 +129,8 @@ def test_confidence_summary_tracks_rio_dayparts_for_current_sampling() -> None:
             "deterministic_vehicle_hash_v1"
         )
         report["evaluation_schema_version"] = 2
-        report["calibration_observation_schema_version"] = 2
-        report["candidate_confidence"]["candidate_version"] = "m2-candidate-v3"
+        report["calibration_observation_schema_version"] = 3
+        report["candidate_confidence"]["candidate_version"] = "m2-candidate-v4"
         reports.append(report)
 
     summary = summarize_reports(
@@ -148,6 +149,7 @@ def test_confidence_summary_tracks_rio_dayparts_for_current_sampling() -> None:
     assert coverage["minimum_50_outcomes_per_band_met"] is True
     assert coverage["all_dayparts_met"] is True
     assert coverage["seven_day_coverage_met"] is False
+    assert coverage["fourteen_day_coverage_met"] is False
 
 
 def test_confidence_summary_excludes_legacy_timebase_from_calibration() -> None:

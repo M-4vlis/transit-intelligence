@@ -16,7 +16,7 @@ def test_readiness_report_stays_collecting_without_calibration() -> None:
         calibration={
             "status": "insufficient_data",
             "promotion_authorized": False,
-            "gates": {"seven_independent_days": False},
+            "gates": {"fourteen_independent_days": False},
             "calibration_candidate": None,
             "coverage": {"independent_day_count": 1},
         },
@@ -41,6 +41,10 @@ def test_readiness_report_can_only_request_manual_review() -> None:
             "coverage": {"independent_day_count": 9},
             "calibration_candidate": {
                 "heldout_monotonic_mae": True,
+                "heldout_monotonic_p90": True,
+                "heldout_band_metrics": {
+                    "high": {"error_over_300_seconds_rate": 0.05}
+                },
                 "heldout_interval_coverage": {
                     "high": 0.8,
                     "medium": 0.75,

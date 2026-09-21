@@ -8,7 +8,9 @@ Oracle. O serviço falha antes de alcançar:
 - 2 OCPUs e 12 GiB de memória na forma Ampere A1;
 - 80% do filesystem raiz;
 - 10 GiB somando projeto e artefatos locais;
-- 10 GB projetados no Object Storage;
+- 10 GB atuais ou projetados no Object Storage como aviso conservador;
+- 15 GB atuais como aviso elevado;
+- 18 GB atuais como bloqueio preventivo antes da franquia;
 - 30 mil requisições mensais projetadas pelo M2.
 
 A Oracle documenta 1.500 OCPU-horas, 9.000 GB-horas, equivalentes a 2 OCPUs e
@@ -21,10 +23,10 @@ outros usos da tenancy. A medição não enxerga recursos de outras instâncias 
 buckets; por isso o relatório marca explicitamente
 `tenancy_wide_usage_not_observed=true`.
 
-Ultrapassar apenas a projeção interna de 10 GB gera `status=warning`, mantendo o
-timer saudável enquanto ainda houver margem até os 20 GB documentados. Exceder
-o limite gratuito projetado, ou qualquer limite imediato de host, gera
-`status=failed` e falha o serviço.
+Ultrapassar 10 ou 15 GB atuais, ou a projeção interna de 10 GB, gera
+`status=warning`. Alcançar 18 GB atuais gera `status=failed` antes de existir
+risco imediato de cobrança. Exceder o limite gratuito projetado ou qualquer
+limite imediato de host também falha o serviço.
 
 ## Automação
 

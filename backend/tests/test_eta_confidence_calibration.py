@@ -30,12 +30,12 @@ def _cohort(anchor: datetime, *, observations_per_band: int = 10) -> dict:
             )
     return {
         "evaluation_schema_version": 2,
-        "calibration_observation_schema_version": 2,
+        "calibration_observation_schema_version": 3,
         "parameters": {
             "effective_anchor_at": anchor.isoformat(),
             "sampling_method": "deterministic_vehicle_hash_v1",
         },
-        "candidate_confidence": {"candidate_version": "m2-candidate-v3"},
+        "candidate_confidence": {"candidate_version": "m2-candidate-v4"},
         "calibration_observations": observations,
     }
 
@@ -48,7 +48,7 @@ def test_calibrator_fails_closed_without_independent_days() -> None:
     assert report["source"]["eligible_cohort_count"] == 0
     assert report["calibration_candidate"] is None
     assert report["gates"] == {
-        "seven_independent_days": False,
+        "fourteen_independent_days": False,
         "all_dayparts": False,
         "minimum_50_outcomes_per_band": False,
         "maximum_single_route_share_20_percent": True,
@@ -57,12 +57,14 @@ def test_calibrator_fails_closed_without_independent_days() -> None:
         "minimum_3_spatial_cells_per_band": False,
         "maximum_single_spatial_cell_share_50_percent_per_band": True,
         "maximum_single_eta_method_share_95_percent_per_band": True,
+        "minimum_70_percent_monotonic_days_mae": False,
+        "minimum_70_percent_monotonic_days_p90": False,
     }
 
 
-def test_calibrator_uses_last_two_days_as_heldout_and_never_auto_promotes() -> None:
+def test_calibrator_uses_last_three_days_as_heldout_and_never_auto_promotes() -> None:
     start = datetime(2026, 9, 1, 7, tzinfo=UTC)
-    utc_hours = (10, 15, 20, 3, 10, 15, 20)
+    utc_hours = (10, 15, 20, 3, 10, 15, 20, 3, 10, 15, 20, 3, 10, 15)
     reports = [
         _cohort(
             (start + timedelta(days=index)).replace(hour=hour),
@@ -77,16 +79,17 @@ def test_calibrator_uses_last_two_days_as_heldout_and_never_auto_promotes() -> N
     assert report["status"] == "candidate_for_manual_review"
     assert report["promotion_authorized"] is False
     assert all(report["gates"].values())
-    assert report["coverage"]["independent_day_count"] == 7
+    assert report["coverage"]["independent_day_count"] == 14
     assert report["coverage"]["band_outcomes"] == {
-        "high": 70,
-        "medium": 70,
-        "low": 70,
+        "high": 140,
+        "medium": 140,
+        "low": 140,
     }
     candidate = report["calibration_candidate"]
-    assert len(candidate["training_dates"]) == 5
-    assert len(candidate["heldout_dates"]) == 2
+    assert len(candidate["training_dates"]) == 11
+    assert len(candidate["heldout_dates"]) == 3
     assert candidate["heldout_monotonic_mae"] is True
+    assert candidate["heldout_monotonic_p90"] is True
     assert candidate["heldout_interval_coverage"] == {
         "high": 1,
         "medium": 1,
@@ -101,6 +104,10 @@ def test_calibrator_uses_last_two_days_as_heldout_and_never_auto_promotes() -> N
     assert high_diversity["spatial_cell_count"] == 4
     assert high_diversity["maximum_single_route_share"] == 0.1
     assert high_diversity["maximum_single_spatial_cell_share"] == 0.3
+    stability = report["coverage"]["daily_stability"]
+    assert stability["eligible_day_count"] == 14
+    assert stability["monotonic_mae_day_rate"] == 1
+    assert stability["monotonic_p90_day_rate"] == 1
 
 
 def test_calibrator_ignores_legacy_or_non_deterministic_reports() -> None:
@@ -111,7 +118,7 @@ def test_calibrator_ignores_legacy_or_non_deterministic_reports() -> None:
     biased["parameters"]["sampling_method"] = "lexicographic_v0"
     previous_candidate = _cohort(anchor + timedelta(hours=2))
     previous_candidate["candidate_confidence"]["candidate_version"] = (
-        "m2-candidate-v2"
+        "m2-candidate-v3"
     )
 
     report = build_calibration_report(
@@ -125,7 +132,7 @@ def test_calibrator_ignores_legacy_or_non_deterministic_reports() -> None:
 
 def test_calibrator_rejects_band_concentration() -> None:
     start = datetime(2026, 9, 1, 10, tzinfo=UTC)
-    reports = [_cohort(start + timedelta(days=index)) for index in range(7)]
+    reports = [_cohort(start + timedelta(days=index)) for index in range(14)]
     for report in reports:
         for observation in report["calibration_observations"]:
             if observation["candidate_band"] == "high":

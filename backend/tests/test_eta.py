@@ -1,3 +1,4 @@
+import json
 from collections import Counter
 from datetime import UTC, datetime, timedelta
 
@@ -18,6 +19,7 @@ from scripts.evaluate_eta_replay import (
     _distance_diagnostics,
     _error_diagnostics,
     _grouped_error_diagnostics,
+    _load_calibrated_offsets,
     _percentile,
     _speed_diagnostics,
 )
@@ -175,6 +177,7 @@ def test_candidate_confidence_rewards_fresh_direct_stable_evidence() -> None:
         position_age_seconds=8,
         projection_distance_m=10,
         match_method=JourneyMatchMethod.EXACT_TRIP,
+        predicted_eta_seconds=120,
     )
 
     assert result.score == 100
@@ -197,6 +200,7 @@ def test_candidate_confidence_explains_weak_fallback_evidence() -> None:
         position_age_seconds=80,
         projection_distance_m=180,
         match_method=JourneyMatchMethod.ROUTE_SHAPE_PATTERN,
+        predicted_eta_seconds=120,
     )
 
     assert result.score == 20
@@ -229,6 +233,7 @@ def test_candidate_confidence_can_rate_strong_fallback_evidence_high() -> None:
             position_age_seconds=8,
             projection_distance_m=10,
             match_method=JourneyMatchMethod.EXACT_TRIP,
+            predicted_eta_seconds=120,
         )
 
         assert result.score == 100
@@ -244,6 +249,7 @@ def test_candidate_confidence_replay_reports_monotonic_error_bands() -> None:
             "high": [10, 30],
         },
         Counter({"low": 1, "medium": 1, "high": 2}),
+        Counter({"low": 1, "medium": 1, "high": 2}),
         [30, 40, 55, 65, 80, 90],
         Counter(
             {
@@ -256,10 +262,62 @@ def test_candidate_confidence_replay_reports_monotonic_error_bands() -> None:
     )
 
     assert report["calibration_status"] == "uncalibrated"
-    assert report["candidate_version"] == "m2-candidate-v3"
+    assert report["candidate_version"] == "m2-candidate-v4"
     assert report["monotonic_mae"] is True
     assert report["bands"]["high"]["mae_seconds"] == 20
     assert report["bands"]["high"]["interval_coverage"] == 1
     assert report["score_p50"] == 60
     assert report["mean_components"]["position_recency"] == 15
     assert report["reasons"] == {"fallback_speed_evidence": 3}
+
+
+def test_candidate_confidence_penalizes_long_prediction_horizons() -> None:
+    evidence = EtaEvidence(
+        method=EtaMethod.VEHICLE_RECENT_SPEED,
+        sample_count=12,
+        window_seconds=300,
+        speed_p25_mps=4.5,
+        speed_median_mps=5,
+        speed_p75_mps=5.5,
+    )
+
+    result = assess_candidate_confidence(
+        evidence=evidence,
+        position_age_seconds=8,
+        projection_distance_m=10,
+        match_method=JourneyMatchMethod.EXACT_TRIP,
+        predicted_eta_seconds=700,
+    )
+
+    assert result.score == 70
+    assert result.band is CandidateConfidenceBand.MEDIUM
+    assert result.components["prediction_horizon_penalty"] == -30
+    assert result.reasons == ("eta_horizon_over_10m",)
+
+
+def test_replay_loads_only_current_guarded_calibration(tmp_path) -> None:
+    report = tmp_path / "calibration.json"
+    report.write_text(
+        json.dumps(
+            {
+                "status": "candidate_for_manual_review",
+                "source": {"candidate_version": "m2-candidate-v4"},
+                "calibration_candidate": {
+                    "proposed_interval_offsets_seconds": {
+                        band: {"lower_seconds": -10, "upper_seconds": 90}
+                        for band in ("high", "medium", "low")
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    status, offsets = _load_calibrated_offsets(report)
+    assert status == "candidate_for_manual_review"
+    assert offsets["high"] == (-10.0, 90.0)
+
+    payload = json.loads(report.read_text(encoding="utf-8"))
+    payload["source"]["candidate_version"] = "m2-candidate-v3"
+    report.write_text(json.dumps(payload), encoding="utf-8")
+    assert _load_calibrated_offsets(report) == ("uncalibrated", {})

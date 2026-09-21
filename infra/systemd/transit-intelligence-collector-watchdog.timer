@@ -1,0 +1,12 @@
+[Unit]
+Description=Check Transit Intelligence collector every three minutes
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=3min
+AccuracySec=20s
+Persistent=true
+Unit=transit-intelligence-collector-watchdog.service
+
+[Install]
+WantedBy=timers.target

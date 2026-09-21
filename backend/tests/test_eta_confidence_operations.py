@@ -21,7 +21,7 @@ def _fixture(directory: Path, now: datetime) -> None:
     calibration_name = f"calibration-{stamp}.json"
     cohort = (
         '{"evaluation_schema_version":2,'
-        '"shadow_confidence_contract_version":"m2-shadow-v1",'
+        '"shadow_confidence_contract_version":"m2-shadow-v2",'
         '"candidate_confidence":{"bands":{"high":'
         '{"outcome_count":10,"mae_seconds":30,"interval_coverage":0.8}}}}'
     )
@@ -98,7 +98,7 @@ def test_operations_report_detects_recent_cohort_continuity_gap(tmp_path: Path) 
         tmp_path,
         older.name,
         '{"evaluation_schema_version":2,'
-        '"shadow_confidence_contract_version":"m2-shadow-v1"}',
+        '"shadow_confidence_contract_version":"m2-shadow-v2"}',
     )
     state_path = tmp_path / ".object-storage-state.json"
     state = json.loads(state_path.read_text(encoding="utf-8"))

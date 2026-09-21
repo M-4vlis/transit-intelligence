@@ -75,9 +75,10 @@ passageiro uma confiança que ainda não foi calibrada. A modernização visual 
 formalizada como gate obrigatório após a estabilização do contrato do M2 e antes
 da beta pública.
 
-A calibração acumula automaticamente oito coortes por dia. Relatórios e
-checksums são preservados, com revisões planejadas após 7, 14 e 30 dias, enquanto
-o restante do M2 avança em paralelo.
+A calibração acumula automaticamente oito coortes por dia. O candidato v4
+considera também o horizonte do ETA e inicia uma validação prospectiva de 14
+dias, com três dias finais reservados como holdout. Relatórios e checksums são
+preservados enquanto o restante do M2 avança em paralelo.
 
 Veja `docs/M0_TRANSIT_CORE.md` e `docs/VALIDATION.md`.
 

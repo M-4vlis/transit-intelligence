@@ -43,6 +43,13 @@ BUDGET_SERVICE = (
 BUDGET_TIMER = (
     ROOT / "infra" / "systemd" / "transit-intelligence-m2-resource-budget.timer"
 )
+WATCHDOG_SCRIPT = ROOT / "infra" / "scripts" / "check_collector_freshness.sh"
+WATCHDOG_SERVICE = (
+    ROOT / "infra" / "systemd" / "transit-intelligence-collector-watchdog.service"
+)
+WATCHDOG_TIMER = (
+    ROOT / "infra" / "systemd" / "transit-intelligence-collector-watchdog.timer"
+)
 
 
 def test_cohort_script_is_concurrent_safe_and_keeps_audit_artifacts() -> None:
@@ -84,6 +91,7 @@ def test_eta_replay_has_explicit_resource_limits() -> None:
 
     assert replay["mem_limit"] == "768m"
     assert replay["cpus"] == 0.35
+    assert replay["volumes"][0].endswith(":/evidence:ro")
 
 
 def test_confidence_evidence_services_are_bounded_and_have_no_data_access() -> None:
@@ -163,4 +171,17 @@ def test_resource_budget_service_is_bounded_and_scheduled_daily() -> None:
     assert "Persistent=true" in timer
     assert "User=ubuntu" in service
     assert "Nice=15" in service
+    assert "NoNewPrivileges=true" in service
+
+
+def test_collector_watchdog_is_frequent_bounded_and_fail_closed() -> None:
+    script = WATCHDOG_SCRIPT.read_text(encoding="utf-8")
+    service = WATCHDOG_SERVICE.read_text(encoding="utf-8")
+    timer = WATCHDOG_TIMER.read_text(encoding="utf-8")
+
+    assert "check_collector_freshness.py" in script
+    assert "collector-watchdog-latest.json" in script
+    assert "OnUnitActiveSec=3min" in timer
+    assert "Persistent=true" in timer
+    assert "User=ubuntu" in service
     assert "NoNewPrivileges=true" in service
