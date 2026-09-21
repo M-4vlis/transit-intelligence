@@ -120,6 +120,14 @@ def test_restore_check_uses_cleanup_backed_archive_volume_for_large_objects():
     assert "archive_data:/data/archive" in service["volumes"]
 
 
+def test_eta_replay_uses_confidence_evidence_owner_for_read_only_calibration():
+    service = _compose()["services"]["eta-replay"]
+    assert service["user"] == (
+        "${TRANSIT_CONFIDENCE_UID:-1001}:${TRANSIT_CONFIDENCE_GID:-1001}"
+    )
+    assert any(volume.endswith(":/evidence:ro") for volume in service["volumes"])
+
+
 def test_retention_preflight_is_non_destructive_and_hardened():
     service = _compose()["services"]["retention-preflight"]
     assert service["command"] == ["python", "scripts/retention_preflight.py"]
