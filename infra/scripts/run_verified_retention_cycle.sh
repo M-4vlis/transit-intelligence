@@ -28,12 +28,30 @@ trap 'rm -f "$preflight_output"' EXIT
 if [[ -n "$REQUESTED_DAY" ]]; then
   archive_days=("$REQUESTED_DAY")
 else
-  # Revisit the full hot window plus its next retention candidate. Verified
-  # manifests make this idempotent and a missed timer heals on the next run.
+  # Revisit every closed hot partition, not only the nominal retention window.
+  # This heals a previously verified archive when late rows arrived after it was
+  # written, including partitions left behind by an older failed cycle.
   mapfile -t archive_days < <(
-    for offset in $(seq 8 -1 1); do
-      date -u -d "$offset days ago" +%F
-    done
+    {
+      for offset in $(seq 8 -1 1); do
+        date -u -d "$offset days ago" +%F
+      done
+      "${COMPOSE[@]}" exec -T postgres sh -ec '
+        PGPASSWORD="$POSTGRES_PASSWORD" psql \
+          -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "
+            SELECT to_char(to_date(right(child.relname, 8), \$\$YYYYMMDD\$\$), \$\$YYYY-MM-DD\$\$)
+            FROM pg_inherits
+            JOIN pg_class parent ON pg_inherits.inhparent = parent.oid
+            JOIN pg_class child ON pg_inherits.inhrelid = child.oid
+            JOIN pg_namespace ns ON ns.oid = child.relnamespace
+            WHERE ns.nspname = \$\$transit\$\$
+              AND parent.relname = \$\$vehicle_positions\$\$
+              AND child.relname ~ \$regex\$^vehicle_positions_[0-9]{8}\$\$regex\$
+              AND to_date(right(child.relname, 8), \$\$YYYYMMDD\$\$) < CURRENT_DATE
+            ORDER BY 1;
+          "
+      '
+    } | sort -u
   )
 fi
 

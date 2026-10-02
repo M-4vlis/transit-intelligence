@@ -15,8 +15,14 @@ SHA = "a" * 64
 
 
 class FakeHistoricalSource:
-    def __init__(self) -> None:
+    def __init__(self, *, row_count: int = 1) -> None:
         self.calls = 0
+        self.row_count = row_count
+
+    async def count_day(self, *, source, day):
+        assert source == SOURCE
+        assert day == DAY
+        return self.row_count
 
     async def iter_day(self, *, source, day, batch_size):
         self.calls += 1
@@ -69,8 +75,8 @@ class FakeWriter:
 
 
 class FakeCatalog:
-    def __init__(self, *, verified=False) -> None:
-        self.verified = verified
+    def __init__(self, *, verified_artifact=None) -> None:
+        self.verified_artifact = verified_artifact
         self.written = []
         self.verified_artifacts = []
         self.failed = []
@@ -78,7 +84,12 @@ class FakeCatalog:
     async def is_verified(self, *, source, day):
         assert source == SOURCE
         assert day == DAY
-        return self.verified
+        return self.verified_artifact is not None
+
+    async def get_verified(self, *, source, day):
+        assert source == SOURCE
+        assert day == DAY
+        return self.verified_artifact
 
     async def record_written(self, artifact):
         self.written.append(artifact)
@@ -117,7 +128,16 @@ async def test_archive_day_writes_verifies_and_commits_manifest() -> None:
 async def test_archive_day_is_idempotent_when_manifest_is_already_verified() -> None:
     source = FakeHistoricalSource()
     writer = FakeWriter()
-    catalog = FakeCatalog(verified=True)
+    artifact = ArchiveArtifact(
+        source=SOURCE,
+        archive_day=DAY,
+        object_uri="file:///archive/day.parquet",
+        local_path=Path("/archive/day.parquet"),
+        row_count=1,
+        byte_size=123,
+        sha256=SHA,
+    )
+    catalog = FakeCatalog(verified_artifact=artifact)
     service = ArchiveDayService(
         source=SOURCE,
         historical_source=source,
@@ -131,6 +151,37 @@ async def test_archive_day_is_idempotent_when_manifest_is_already_verified() -> 
     assert report.skipped_existing is True
     assert writer.write_calls == 0
     assert source.calls == 0
+
+
+@pytest.mark.asyncio
+async def test_archive_day_rewrites_verified_archive_after_late_rows() -> None:
+    source = FakeHistoricalSource(row_count=2)
+    writer = FakeWriter()
+    stale = ArchiveArtifact(
+        source=SOURCE,
+        archive_day=DAY,
+        object_uri="file:///archive/day.parquet",
+        local_path=Path("/archive/day.parquet"),
+        row_count=1,
+        byte_size=123,
+        sha256=SHA,
+    )
+    catalog = FakeCatalog(verified_artifact=stale)
+    service = ArchiveDayService(
+        source=SOURCE,
+        historical_source=source,
+        writer=writer,
+        catalog=catalog,
+        batch_size=2,
+    )
+
+    report = await service.run_day(day=DAY)
+
+    assert report.skipped_existing is False
+    assert writer.write_calls == 1
+    assert source.calls == 1
+    assert len(catalog.written) == 1
+    assert len(catalog.verified_artifacts) == 1
 
 
 @pytest.mark.asyncio

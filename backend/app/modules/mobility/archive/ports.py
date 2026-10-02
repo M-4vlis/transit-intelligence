@@ -9,6 +9,8 @@ from app.modules.mobility.models import VehiclePosition
 
 
 class HistoricalPositionSource(Protocol):
+    async def count_day(self, *, source: str, day: date) -> int: ...
+
     def iter_day(
         self,
         *,
@@ -32,6 +34,8 @@ class ColdArchiveWriter(Protocol):
 
 class ArchiveManifestCatalog(Protocol):
     async def is_verified(self, *, source: str, day: date) -> bool: ...
+
+    async def get_verified(self, *, source: str, day: date) -> ArchiveArtifact | None: ...
 
     async def record_written(self, artifact: ArchiveArtifact) -> None: ...
 
