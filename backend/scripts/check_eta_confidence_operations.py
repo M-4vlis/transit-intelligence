@@ -311,6 +311,8 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--retention-service-exit-status", type=int, default=0)
     parser.add_argument("--watchdog-service-result", default="unknown")
     parser.add_argument("--watchdog-service-exit-status", type=int, default=0)
+    parser.add_argument("--capacity-service-result", default="unknown")
+    parser.add_argument("--capacity-service-exit-status", type=int, default=0)
     return parser.parse_args()
 
 
@@ -342,6 +344,10 @@ def main() -> None:
             "collector_watchdog": (
                 args.watchdog_service_result,
                 args.watchdog_service_exit_status,
+            ),
+            "capacity_guard": (
+                args.capacity_service_result,
+                args.capacity_service_exit_status,
             ),
         },
     )

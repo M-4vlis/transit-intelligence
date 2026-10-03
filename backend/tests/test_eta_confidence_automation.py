@@ -50,6 +50,13 @@ WATCHDOG_SERVICE = (
 WATCHDOG_TIMER = (
     ROOT / "infra" / "systemd" / "transit-intelligence-collector-watchdog.timer"
 )
+CAPACITY_SCRIPT = ROOT / "infra" / "scripts" / "guard_transit_capacity.sh"
+CAPACITY_SERVICE = (
+    ROOT / "infra" / "systemd" / "transit-intelligence-capacity-guard.service"
+)
+CAPACITY_TIMER = (
+    ROOT / "infra" / "systemd" / "transit-intelligence-capacity-guard.timer"
+)
 
 
 def test_cohort_script_is_concurrent_safe_and_keeps_audit_artifacts() -> None:
@@ -138,6 +145,7 @@ def test_confidence_monitor_is_frequent_persistent_and_records_failures() -> Non
     assert "transit-intelligence-m2-resource-budget.service" in script
     assert "transit-intelligence-verified-retention.service" in script
     assert "transit-intelligence-collector-watchdog.service" in script
+    assert "transit-intelligence-capacity-guard.service" in script
     assert "OnCalendar=*:0/30" in timer
     assert "Persistent=true" in timer
     assert "User=ubuntu" in service
@@ -185,4 +193,26 @@ def test_collector_watchdog_is_frequent_bounded_and_fail_closed() -> None:
     assert "OnUnitActiveSec=3min" in timer
     assert "Persistent=true" in timer
     assert "User=ubuntu" in service
+    assert "NoNewPrivileges=true" in service
+    assert "capacity-guard-paused-collector" in script
+    assert "transit-intelligence-rio-ingestion-1" in script
+
+
+def test_capacity_guard_is_scoped_frequent_and_low_priority() -> None:
+    script = CAPACITY_SCRIPT.read_text(encoding="utf-8")
+    service = CAPACITY_SERVICE.read_text(encoding="utf-8")
+    timer = CAPACITY_TIMER.read_text(encoding="utf-8")
+
+    assert "-p transit-intelligence" in script
+    assert "rio-ingestion" in script
+    assert "docker system prune" not in script
+    assert "docker volume prune" not in script
+    assert "capacity-guard-paused-collector" in script
+    assert "OnUnitActiveSec=5min" in timer
+    assert "Persistent=true" in timer
+    assert "User=ubuntu" in service
+    assert "Nice=15" in service
+    assert "IOSchedulingClass=idle" in service
+    assert "CPUWeight=10" in service
+    assert "IOWeight=10" in service
     assert "NoNewPrivileges=true" in service

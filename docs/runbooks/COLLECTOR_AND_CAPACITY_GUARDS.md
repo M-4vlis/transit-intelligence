@@ -14,6 +14,32 @@ coleta enquanto o host está ligado. Ele não consegue avisar quando a própria
 VPS está desligada; para isso é obrigatório um alarme externo da OCI ou outro
 monitor fora da instância.
 
+Se o container do coletor estiver encerrado, o watchdog executa `compose up`
+somente para `rio-ingestion`. Ele nunca reinicia um coletor pausado pelo
+guardião de capacidade e não atua sobre containers de outros projetos.
+
+## Guardião de capacidade da VPS compartilhada
+
+O timer `transit-intelligence-capacity-guard.timer` roda a cada cinco minutos:
+
+- com 80% do filesystem raiz, tenta antecipar o ciclo de archive, restauração e
+  retenção verificada do próprio Transit;
+- com 90%, pausa somente `transit-intelligence-rio-ingestion-1` antes que a
+  coleta prejudique PostgreSQL, Valkey ou as outras aplicações da VPS;
+- abaixo de 75%, valida um novo BGSAVE do Valkey e retoma o coletor apenas se o
+  próprio guardião houver criado a pausa;
+- com 18 GB medidos no prefixo Transit do Object Storage, pausa o coletor antes
+  do limite gratuito de 20 GB e exige decisão manual sobre retenção fria.
+
+O guardião não executa `docker system prune`, `docker volume prune`, limpeza de
+logs globais nem remoção automática de objetos. Se a medição do Object Storage
+estiver ausente ou vencida, ele não inicia archive adicional em situação de
+pressão: pausa a coleta e falha fechado.
+
+Relatório atual:
+
+`/home/ubuntu/artifacts/transit-intelligence/operations/capacity-guard-latest.json`
+
 ## Alarme externo da OCI
 
 O monitor externo foi ativado em 20/09/2026 sem depender da VPS:

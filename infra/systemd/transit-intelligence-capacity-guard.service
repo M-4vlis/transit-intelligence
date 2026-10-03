@@ -1,5 +1,5 @@
 [Unit]
-Description=Check Transit Intelligence realtime collector freshness
+Description=Protect the shared VPS from Transit Intelligence capacity exhaustion
 Requires=docker.service
 After=docker.service network-online.target
 ConditionPathExists=/home/ubuntu/apps/transit-intelligence/.env.production
@@ -9,7 +9,10 @@ Type=oneshot
 User=ubuntu
 Group=ubuntu
 WorkingDirectory=/home/ubuntu/apps/transit-intelligence
-ExecStart=/bin/bash infra/scripts/check_collector_freshness.sh
-TimeoutStartSec=90s
-Nice=10
+ExecStart=/bin/bash infra/scripts/guard_transit_capacity.sh
+TimeoutStartSec=3h
+Nice=15
+IOSchedulingClass=idle
+CPUWeight=10
+IOWeight=10
 NoNewPrivileges=true

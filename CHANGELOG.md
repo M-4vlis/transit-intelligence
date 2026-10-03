@@ -10,6 +10,11 @@
   daily MAE/P90 monotonicity, interval coverage and high-band tail-error gates.
 - Added a three-minute collector freshness watchdog and Object Storage warning
   levels at 10/15 GB with an 18 GB hard guard.
+- Added a project-scoped capacity guard that advances verified retention at 80%
+  disk usage, pauses only Transit ingestion at 90% or 18 GB of cold storage,
+  and safely resumes after disk and Valkey persistence recover.
+- The collector watchdog now restarts an exited Transit worker while respecting
+  capacity pauses and leaving every other VPS application untouched.
 
 ## Unreleased — M2
 
