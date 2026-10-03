@@ -22,9 +22,10 @@ python3 "$ROOT_DIR/backend/scripts/check_collector_freshness.py" \
 result=$?
 set -e
 
-# Recover only an exited collector. A running-but-stale collector stays failed
-# for diagnosis, and a capacity-guard pause is never overridden.
-if [[ "$result" -ne 0 && ! -f "$PAUSE_MARKER" ]]; then
+# Recover an exited collector immediately, even while its last success is still
+# fresh. A running-but-stale collector stays failed for diagnosis, and a
+# capacity-guard pause is never overridden.
+if [[ ! -f "$PAUSE_MARKER" ]]; then
   running="$(docker inspect -f '{{.State.Running}}' transit-intelligence-rio-ingestion-1 2>/dev/null || true)"
   root_used_percent="$(df --output=pcent / | tail -n 1 | tr -dc '0-9')"
   if [[ "$running" != "true" && "${root_used_percent:-100}" -lt "${TRANSIT_DISK_CRITICAL_PERCENT:-90}" ]]; then
