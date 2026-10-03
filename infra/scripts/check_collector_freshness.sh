@@ -29,8 +29,21 @@ if [[ ! -f "$PAUSE_MARKER" ]]; then
   running="$(docker inspect -f '{{.State.Running}}' transit-intelligence-rio-ingestion-1 2>/dev/null || true)"
   root_used_percent="$(df --output=pcent / | tail -n 1 | tr -dc '0-9')"
   if [[ "$running" != "true" && "${root_used_percent:-100}" -lt "${TRANSIT_DISK_CRITICAL_PERCENT:-90}" ]]; then
-    "${COMPOSE[@]}" up -d rio-ingestion
+    if docker inspect transit-intelligence-rio-ingestion-1 >/dev/null 2>&1; then
+      docker start transit-intelligence-rio-ingestion-1 >/dev/null
+    else
+      "${COMPOSE[@]}" up -d rio-ingestion
+    fi
     printf 'collector_recovery=started\n' >&2
+    for _ in $(seq 1 45); do
+      sleep 2
+      set +e
+      python3 "$ROOT_DIR/backend/scripts/check_collector_freshness.py" \
+        --maximum-age-seconds "${TRANSIT_COLLECTOR_MAXIMUM_AGE_SECONDS:-300}" >"$temporary"
+      result=$?
+      set -e
+      [[ "$result" -eq 0 ]] && break
+    done
   fi
 fi
 
