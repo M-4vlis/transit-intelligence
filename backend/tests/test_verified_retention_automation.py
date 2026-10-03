@@ -21,6 +21,10 @@ def test_verified_retention_cycle_fails_closed_before_apply() -> None:
     assert "run -T --rm retention" in text
     assert "seq 8 -1 1" in text
     assert "archive_days" in text
+    assert "exec -T postgres" in text
+    assert "vehicle_positions_[0-9]{8}" in text
+    assert "\\$\\$YYYYMMDD\\$\\$" in text
+    assert "sort -u" in text
 
 
 def test_verified_retention_timer_is_daily_low_priority_and_serialized() -> None:

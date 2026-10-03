@@ -363,6 +363,24 @@ class PostgresHistoricalPositionSource:
     def __init__(self, pool: Any) -> None:
         self.pool = pool
 
+    async def count_day(self, *, source: str, day: date) -> int:
+        start = datetime.combine(day, datetime.min.time(), tzinfo=UTC)
+        end = start + timedelta(days=1)
+        async with self.pool.acquire() as conn:
+            value = await conn.fetchval(
+                """
+                SELECT count(*)
+                FROM transit.vehicle_positions
+                WHERE source = $1
+                  AND observed_at >= $2
+                  AND observed_at < $3
+                """,
+                source,
+                start,
+                end,
+            )
+        return int(value or 0)
+
     async def iter_day(
         self,
         *,

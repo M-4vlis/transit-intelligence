@@ -33,11 +33,20 @@ class ArchiveDayService:
         self.batch_size = batch_size
 
     async def run_day(self, *, day: date) -> ArchiveRunReport:
-        if await self.catalog.is_verified(source=self.source, day=day):
+        existing = await self.catalog.get_verified(source=self.source, day=day)
+        current_row_count = await self.historical_source.count_day(
+            source=self.source,
+            day=day,
+        )
+        if existing is not None and existing.row_count == current_row_count:
             return ArchiveRunReport(
                 source=self.source,
                 archive_day=day,
                 status=ArchiveStatus.VERIFIED,
+                object_uri=existing.object_uri,
+                row_count=existing.row_count,
+                byte_size=existing.byte_size,
+                sha256=existing.sha256,
                 skipped_existing=True,
             )
 
