@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Froze production collection on 2026-10-05, verified a minimal restorable
+  database snapshot without raw hot positions, preserved final M2 evidence and
+  documented the exact resume procedure for a future host.
+
 - Added the horizon-aware, method-neutral `m2-candidate-v4` and preserved older
   immutable cohorts outside its calibration set.
 - Added guarded calibrated arrival windows to the private `m2-shadow-v2`

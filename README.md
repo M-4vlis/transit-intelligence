@@ -1,5 +1,10 @@
 # Transit Intelligence
 
+> **Projeto congelado em 05/10/2026.** A coleta e a infraestrutura foram
+> desligadas enquanto o projeto aguarda nova hospedagem. O snapshot essencial,
+> a análise final e o procedimento de retomada estão documentados em
+> [`docs/FROZEN_STATE_2026-10-05.md`](docs/FROZEN_STATE_2026-10-05.md).
+
 Fundação técnica de um aplicativo comercial de mobilidade com foco em **previsão confiável, decisão de saída e inteligência operacional**, começando pelo transporte por ônibus do Rio de Janeiro.
 
 > A marca comercial permanece desacoplada do código. Os identificadores técnicos usam `transit-intelligence` até a aprovação definitiva de uma marca sem colisões.
