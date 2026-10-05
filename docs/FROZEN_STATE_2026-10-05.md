@@ -12,6 +12,20 @@ O código versionado não contém `.env.production`, credenciais do OCI, token d
 Cloudflare nem chaves privadas. Esses segredos devem ser recuperados da conta
 correspondente ou recriados na retomada.
 
+Estado final da VPS após a preservação remota:
+
+- nenhum container, volume, rede ou imagem Docker do Transit permanece;
+- todos os timers e o serviço de soak do Transit estão desabilitados;
+- nenhum serviço do Transit está ativo;
+- filesystem raiz em 13%, com aproximadamente 85 GB disponíveis;
+- aproximadamente 10 GiB de RAM disponíveis;
+- containers das aplicações `atualiza-materiais` e `deploy` permaneceram
+  ativos e saudáveis;
+- permanecem apenas a cópia de release protegida, incluindo o `.env.production`
+  local, e o repositório Git bare: cerca de 5,1 MB no total;
+- os artifacts locais foram removidos depois da verificação remota e podem ser
+  recuperados pelo prefixo de congelamento no Object Storage.
+
 ## Posição do produto
 
 - **M0 Transit Core:** concluído e comprovado em produção ARM64.
@@ -143,5 +157,5 @@ manual explícita.
 O histórico frio foi mantido porque é o ativo caro e não reproduzível do
 projeto, permanece dentro da cota gratuita congelada e permite recalibrar ETAs.
 Na VPS, somente código, configuração secreta protegida e documentação mínima
-podem permanecer; containers, imagens, cache e volumes de dados do Transit são
-dispensáveis após a verificação remota acima.
+permanecem. Containers, imagens, cache, artifacts e volumes de dados do Transit
+foram removidos depois da verificação remota acima.
